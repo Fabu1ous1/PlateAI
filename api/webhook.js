@@ -141,7 +141,29 @@ const TOOL = {
   },
 };
 
-async function analyze({ text, imageB64 }) {
+// Общая очистка ответа модели (одинаковая для Claude и Gemini)
+function normalize(out) {
+  out = out || {};
+  const num = (x, max) => Math.round(Math.min(Math.max(Number(x) || 0, 0), max));
+  const items = (Array.isArray(out.items) ? out.items : []).slice(0, 30).map((i) => ({
+    name: String(i.name || '?').slice(0, 60),
+    amount: String(i.amount || '').slice(0, 40),
+    kcal: num(i.kcal, 5000),
+    protein: num(i.protein, 500),
+    fat: num(i.fat, 500),
+    carbs: num(i.carbs, 800),
+  }));
+  return {
+    isFood: out.is_food !== false && items.length > 0,
+    reply: String(out.reply || ''),
+    note: String(out.note || ''),
+    items,
+  };
+}
+
+/* ---------- Claude (если задан ANTHROPIC_API_KEY) ---------- */
+
+async function analyzeClaude({ text, imageB64 }) {
   const content = [];
   if (imageB64) {
     content.push({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imageB64 } });
@@ -169,23 +191,98 @@ async function analyze({ text, imageB64 }) {
   const data = await r.json();
   const block = data.content?.find((b) => b.type === 'tool_use');
   if (!block) throw new Error('No tool_use block in response');
+  return normalize(block.input);
+}
 
-  const out = block.input || {};
-  const num = (x, max) => Math.round(Math.min(Math.max(Number(x) || 0, 0), max));
-  const items = (Array.isArray(out.items) ? out.items : []).slice(0, 30).map((i) => ({
-    name: String(i.name || '?').slice(0, 60),
-    amount: String(i.amount || '').slice(0, 40),
-    kcal: num(i.kcal, 5000),
-    protein: num(i.protein, 500),
-    fat: num(i.fat, 500),
-    carbs: num(i.carbs, 800),
-  }));
-  return {
-    isFood: out.is_food !== false && items.length > 0,
-    reply: String(out.reply || ''),
-    note: String(out.note || ''),
-    items,
-  };
+/* ---------- Gemini (бесплатно, если задан GEMINI_API_KEY) ---------- */
+
+// Порядок важен: если первая модель недоступна (снята с поддержки, лимит), пробуем следующую.
+// Можно переопределить переменной GEMINI_MODELS (через запятую).
+const GEMINI_MODELS = () =>
+  (process.env.GEMINI_MODELS || 'gemini-3.7-flash,gemini-3-flash-preview,gemini-2.5-flash-lite')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+const SYSTEM_GEMINI = SYSTEM.replace(
+  'Всегда вызывай инструмент log_meal.',
+  'Ответь строго JSON-объектом по заданной схеме, без пояснений и без markdown.',
+);
+
+const GEMINI_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    is_food: { type: 'BOOLEAN', description: 'true, если пользователь описал еду или напитки' },
+    reply: { type: 'STRING', description: 'Если is_food=false — короткий ответ пользователю, иначе пустая строка' },
+    note: { type: 'STRING', description: 'Короткая пометка о допущениях, если они были, иначе пустая строка' },
+    items: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          name: { type: 'STRING' },
+          amount: { type: 'STRING', description: 'Порция, например «200 г» или «2 шт (~110 г)»' },
+          kcal: { type: 'NUMBER' },
+          protein: { type: 'NUMBER', description: 'граммы' },
+          fat: { type: 'NUMBER', description: 'граммы' },
+          carbs: { type: 'NUMBER', description: 'граммы' },
+        },
+        required: ['name', 'amount', 'kcal', 'protein', 'fat', 'carbs'],
+      },
+    },
+  },
+  required: ['is_food', 'items'],
+};
+
+function geminiJson(data) {
+  const cand = data.candidates?.[0];
+  if (!cand) throw new Error(`Gemini: no candidates ${JSON.stringify(data.promptFeedback || {})}`);
+  const txt = (cand.content?.parts || [])
+    .filter((p) => typeof p.text === 'string' && !p.thought)
+    .map((p) => p.text)
+    .join('')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/```\s*$/, '')
+    .trim();
+  return JSON.parse(txt);
+}
+
+async function analyzeGemini({ text, imageB64 }) {
+  const parts = [];
+  if (imageB64) parts.push({ inlineData: { mimeType: 'image/jpeg', data: imageB64 } });
+  parts.push({ text: text || 'Оцени калории и БЖУ того, что на фото.' });
+
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: SYSTEM_GEMINI }] },
+    contents: [{ role: 'user', parts }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: GEMINI_SCHEMA,
+      temperature: 0.2,
+      maxOutputTokens: 4096,
+    },
+  });
+
+  let lastErr = new Error('Gemini: no models configured');
+  for (const model of GEMINI_MODELS()) {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-goog-api-key': process.env.GEMINI_API_KEY },
+      body,
+    });
+    if (r.ok) return normalize(geminiJson(await r.json()));
+
+    lastErr = new Error(`Gemini ${model} ${r.status}: ${(await r.text()).slice(0, 300)}`);
+    console.error(lastErr.message);
+    if (r.status === 401 || r.status === 403) break; // проблема с ключом — другая модель не поможет
+  }
+  throw lastErr;
+}
+
+// Какой ИИ использовать: Gemini, если есть GEMINI_API_KEY, иначе Claude
+async function analyze(args) {
+  return process.env.GEMINI_API_KEY ? analyzeGemini(args) : analyzeClaude(args);
 }
 
 /* ============================== Форматирование ============================== */
@@ -433,4 +530,3 @@ export default async function handler(req, res) {
   // всегда 200, чтобы Telegram не слал апдейт повторно
   return res.status(200).send('ok');
 }
-
