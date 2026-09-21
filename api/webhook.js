@@ -17,7 +17,8 @@ async function tg(method, payload) {
   return data;
 }
 
-const send = (chat_id, text, extra = {}) => tg('sendMessage', { chat_id, text, ...extra });
+const send = (chat_id, text, extra = {}) =>
+  tg('sendMessage', { chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true, ...extra });
 
 async function photoToBase64(file_id) {
   const info = await tg('getFile', { file_id });
@@ -108,6 +109,7 @@ const SYSTEM = `Ты — точный калькулятор калорий и �
 - Если не сказано «сухой», «сырой» или «до варки», считай крупы и пасту в готовом виде.
 - Учитывай масло, соусы и способ приготовления, если они названы; если нет — предполагай обычное домашнее приготовление.
 - Для фото оцени размер порции по виду; при сильной неуверенности напиши это в note.
+- Для каждой позиции выбери один подходящий эмодзи в поле emoji (например 🍳, 🍚, 🍔, 🥗, 🍎).
 - Все значения — целые числа. kcal должно примерно сходиться с 4*белки + 4*углеводы + 9*жиры.
 - Если сообщение не про еду или напитки, поставь is_food=false и коротко ответь в reply.
 Всегда вызывай инструмент log_meal.`;
@@ -127,6 +129,7 @@ const TOOL = {
           type: 'object',
           properties: {
             name: { type: 'string' },
+            emoji: { type: 'string', description: 'Один эмодзи, подходящий к этой еде' },
             amount: { type: 'string', description: 'Порция, например «200 г» или «2 шт (~110 г)»' },
             kcal: { type: 'number' },
             protein: { type: 'number', description: 'граммы' },
@@ -147,6 +150,7 @@ function normalize(out) {
   const num = (x, max) => Math.round(Math.min(Math.max(Number(x) || 0, 0), max));
   const items = (Array.isArray(out.items) ? out.items : []).slice(0, 30).map((i) => ({
     name: String(i.name || '?').slice(0, 60),
+    emoji: /\p{Extended_Pictographic}/u.test(String(i.emoji || '')) ? String(i.emoji).trim().slice(0, 8) : '🍽',
     amount: String(i.amount || '').slice(0, 40),
     kcal: num(i.kcal, 5000),
     protein: num(i.protein, 500),
@@ -221,13 +225,14 @@ const GEMINI_SCHEMA = {
         type: 'OBJECT',
         properties: {
           name: { type: 'STRING' },
+          emoji: { type: 'STRING', description: 'Один эмодзи, подходящий к этой еде' },
           amount: { type: 'STRING', description: 'Порция, например «200 г» или «2 шт (~110 г)»' },
           kcal: { type: 'NUMBER' },
           protein: { type: 'NUMBER', description: 'граммы' },
           fat: { type: 'NUMBER', description: 'граммы' },
           carbs: { type: 'NUMBER', description: 'граммы' },
         },
-        required: ['name', 'amount', 'kcal', 'protein', 'fat', 'carbs'],
+        required: ['name', 'emoji', 'amount', 'kcal', 'protein', 'fat', 'carbs'],
       },
     },
   },
@@ -287,14 +292,36 @@ async function analyze(args) {
 
 /* ============================== Форматирование ============================== */
 
-const HELP = `Привет! Я считаю калории 🍽
+const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const clip = (s, n) => {
+  const chars = Array.from(String(s));
+  return chars.length > n ? chars.slice(0, n - 1).join('') + '…' : chars.join('');
+};
+const LINE = '━━━━━━━━━━';
 
+// Кнопки внизу экрана → команды
+const BUTTON_TEXT = {
+  '📊 Сегодня': '/today',
+  '📅 Неделя': '/week',
+  '↩️ Отменить': '/undo',
+  'ℹ️ Помощь': '/help',
+};
+const MAIN_KEYBOARD = {
+  keyboard: [[{ text: '📊 Сегодня' }, { text: '📅 Неделя' }], [{ text: '↩️ Отменить' }, { text: 'ℹ️ Помощь' }]],
+  resize_keyboard: true,
+  is_persistent: true,
+  input_field_placeholder: 'Что съел? Например: 2 яйца и 150 г гречки',
+};
+
+const helpText = (name) => `👋 <b>${name ? `Привет, ${esc(name)}!` : 'Привет!'}</b> Я <b>PlateAI</b> — считаю калории и БЖУ.
+
+<b>Как пользоваться</b>
 Просто напиши, что съел:
-• 2 яйца и 150 г гречки
-• бургер и кола 0.5
-или пришли фото тарелки 📸
+• <i>2 яйца и 150 г гречки</i>
+• <i>бургер и кола 0.5</i>
+или пришли 📸 <b>фото тарелки</b>.
 
-Команды:
+<b>Команды</b>
 /today — итоги за сегодня
 /week — последние 7 дней
 /undo — удалить последнюю запись
@@ -314,38 +341,45 @@ const daySum = (entries) =>
     { kcal: 0, p: 0, f: 0, c: 0 },
   );
 
-const bar = (value, goal) => {
-  const n = Math.max(0, Math.min(10, Math.round((value / goal) * 10)));
-  return '▓'.repeat(n) + '░'.repeat(10 - n);
+// Полоска прогресса: 🟩 в норме, 🟨 почти норма, 🟥 перебор
+const bar = (value, goal, n = 10) => {
+  const pct = goal > 0 ? value / goal : 0;
+  const filled = Math.max(0, Math.min(n, Math.round(pct * n)));
+  const on = pct > 1 ? '🟥' : pct > 0.9 ? '🟨' : '🟩';
+  return on.repeat(filled) + '⬜'.repeat(n - filled);
 };
 
 function progress(entries, goal) {
   const t = daySum(entries);
   const left = goal - t.kcal;
+  const pct = goal > 0 ? Math.round((t.kcal / goal) * 100) : 0;
   return (
-    `📊 Сегодня: ${t.kcal} / ${goal} ккал\n${bar(t.kcal, goal)}\n` +
-    (left >= 0 ? `Осталось: ${left} ккал` : `Перебор: +${-left} ккал`) +
-    `\nБ ${t.p} · Ж ${t.f} · У ${t.c}`
+    `📊 <b>Сегодня: ${t.kcal} / ${goal} ккал</b> · ${pct}%\n${bar(t.kcal, goal)}\n` +
+    (left >= 0 ? `Осталось: <b>${left} ккал</b>` : `Перебор: <b>+${-left} ккал</b>`) +
+    `\n🥩 Б ${t.p} · 🧈 Ж ${t.f} · 🍞 У ${t.c}`
   );
 }
 
 function mealText(entry, note) {
   const lines = entry.items.map(
-    (i) => `• ${i.name}${i.amount ? ', ' + i.amount : ''} — ${i.kcal} ккал`,
+    (i) => `${i.emoji || '🍽'} ${esc(i.name)}${i.amount ? `, ${esc(i.amount)}` : ''} — <b>${i.kcal} ккал</b>`,
   );
   return (
-    `✅ Записал:\n${lines.join('\n')}\n\n` +
-    `Итого: ${entry.kcal} ккал · Б ${entry.p} · Ж ${entry.f} · У ${entry.c}` +
-    (note ? `\n💡 ${note}` : '')
+    `✅ <b>Записал</b>\n\n${lines.join('\n')}\n\n` +
+    `<b>Итого: ${entry.kcal} ккал</b>\n🥩 Б ${entry.p} · 🧈 Ж ${entry.f} · 🍞 У ${entry.c}` +
+    (note ? `\n\n💡 <i>${esc(note)}</i>` : '')
   );
 }
 
 function todayText(entries, goal) {
-  if (!entries.length) return `Сегодня пока пусто. Напиши, что съел 🍽\nНорма: ${goal} ккал`;
-  const lines = entries.map(
-    (e) => `${e.at} — ${e.items.map((i) => i.name).join(', ').slice(0, 70)} — ${e.kcal} ккал`,
-  );
-  return `🗒 Сегодня:\n${lines.join('\n')}\n\n${progress(entries, goal)}`;
+  if (!entries.length) {
+    return `🍽 <b>Сегодня пока пусто</b>\nНапиши, что съел, или пришли фото 📸\n🎯 Норма: ${goal} ккал`;
+  }
+  const lines = entries.map((e) => {
+    const names = e.items.map((i) => `${i.emoji || '🍽'} ${i.name}`).join(', ');
+    return `<code>${esc(e.at)}</code> ${esc(clip(names, 80))} — <b>${e.kcal}</b>`;
+  });
+  return `🗒 <b>Сегодня</b>\n${lines.join('\n')}\n\n${LINE}\n${progress(entries, goal)}`;
 }
 
 async function weekText(uid, tz, goal) {
@@ -358,13 +392,13 @@ async function weekText(uid, tz, goal) {
   const lines = days.map(({ d, e }) => {
     const kcal = daySum(e).kcal;
     const wd = new Date(`${d}T12:00:00Z`).toLocaleDateString('ru-RU', { weekday: 'short', timeZone: 'UTC' });
-    return `${wd} ${d.slice(8)}.${d.slice(5, 7)} ${bar(kcal, goal)} ${kcal}`;
+    return `<code>${wd} ${d.slice(8)}.${d.slice(5, 7)}</code> ${bar(kcal, goal, 8)} <b>${kcal}</b>`;
   });
   const filled = days.filter((x) => x.e.length);
   const avg = filled.length
     ? Math.round(filled.reduce((s, x) => s + daySum(x.e).kcal, 0) / filled.length)
     : 0;
-  return `📅 Последние 7 дней (норма ${goal}):\n${lines.join('\n')}\n\nВ среднем: ${avg} ккал/день`;
+  return `📅 <b>Последние 7 дней</b> (норма ${goal})\n\n${lines.join('\n')}\n\n📈 В среднем: <b>${avg} ккал/день</b>`;
 }
 
 /* ============================== Логика бота ============================== */
@@ -397,7 +431,7 @@ async function logMeal(m, uid, chat, text) {
   const ai = await analyze({ text, imageB64 });
 
   if (!ai.isFood) {
-    return send(chat, ai.reply || 'Не понял, что ты съел. Например: «2 яйца и 150 г гречки».');
+    return send(chat, esc(ai.reply || 'Не понял, что ты съел. Например: «2 яйца и 150 г гречки».'));
   }
 
   const t = totalOf(ai.items);
@@ -405,8 +439,15 @@ async function logMeal(m, uid, chat, text) {
   await addMeal(uid, date, entry);
 
   const [entries, goal] = await Promise.all([getDay(uid, date), getGoal(uid)]);
-  return send(chat, `${mealText(entry, ai.note)}\n\n${progress(entries, goal)}`, {
-    reply_markup: { inline_keyboard: [[{ text: '↩️ Отменить', callback_data: `undo:${entry.id}:${date}` }]] },
+  return send(chat, `${mealText(entry, ai.note)}\n\n${LINE}\n${progress(entries, goal)}`, {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '↩️ Отменить', callback_data: `undo:${entry.id}:${date}` },
+          { text: '📊 Итоги дня', callback_data: 'today' },
+        ],
+      ],
+    },
   });
 }
 
@@ -414,19 +455,20 @@ async function onMessage(m) {
   if (m.chat?.type !== 'private') return; // работаем только в личке
   const chat = m.chat.id;
   const uid = m.from?.id;
-  const raw = (m.text || m.caption || '').trim();
+  let raw = (m.text || m.caption || '').trim();
+  if (BUTTON_TEXT[raw]) raw = BUTTON_TEXT[raw]; // нажатие на кнопку внизу
   const [head, ...rest] = raw.split(/\s+/);
   const cmd = raw.startsWith('/') ? head.split('@')[0].toLowerCase() : null;
   const arg = rest.join(' ').trim();
 
-  if (cmd === '/id') return send(chat, `Твой Telegram ID: ${uid}`);
-  if (!allowed(uid)) return send(chat, `🔒 Бот приватный. Твой ID: ${uid}`);
+  if (cmd === '/id') return send(chat, `Твой Telegram ID: <code>${uid}</code>`);
+  if (!allowed(uid)) return send(chat, `🔒 Бот приватный. Твой ID: <code>${uid}</code>`);
 
   try {
     switch (cmd) {
       case '/start':
       case '/help':
-        return await send(chat, HELP);
+        return await send(chat, helpText(m.from?.first_name), { reply_markup: MAIN_KEYBOARD });
 
       case '/today': {
         const tz = await getTz(uid);
@@ -446,14 +488,17 @@ async function onMessage(m) {
         if (!removed) return await send(chat, 'Сегодня нечего отменять 🤷');
         const [entries, goal] = await Promise.all([getDay(uid, date), getGoal(uid)]);
         const names = removed.items.map((i) => i.name).join(', ');
-        return await send(chat, `↩️ Удалил: ${names} (−${removed.kcal} ккал)\n\n${progress(entries, goal)}`);
+        return await send(
+          chat,
+          `↩️ <b>Удалил:</b> ${esc(clip(names, 80))} (−${removed.kcal} ккал)\n\n${LINE}\n${progress(entries, goal)}`,
+        );
       }
 
       case '/goal': {
         const goal = parseInt(arg, 10);
         if (!(goal >= 800 && goal <= 10000)) return await send(chat, 'Формат: /goal 2200');
         await redis('SET', `u:${uid}:goal`, goal);
-        return await send(chat, `🎯 Норма: ${goal} ккал в день`);
+        return await send(chat, `🎯 Норма: <b>${goal} ккал</b> в день`);
       }
 
       case '/tz': {
@@ -461,7 +506,7 @@ async function onMessage(m) {
           return await send(chat, 'Формат: /tz Asia/Shanghai (или Europe/Moscow, Asia/Tashkent)');
         }
         await redis('SET', `u:${uid}:tz`, arg);
-        return await send(chat, `🕒 Часовой пояс: ${arg}`);
+        return await send(chat, `🕒 Часовой пояс: <b>${esc(arg)}</b>`);
       }
 
       default:
@@ -476,12 +521,21 @@ async function onMessage(m) {
 
 async function onCallback(q) {
   const uid = q.from?.id;
-  if (!allowed(uid)) return tg('answerCallbackQuery', { callback_query_id: q.id });
+  const chat = q.message?.chat?.id;
+  if (!allowed(uid) || !chat) return tg('answerCallbackQuery', { callback_query_id: q.id });
 
   const [action, id, date] = String(q.data || '').split(':');
-  if (action !== 'undo' || !id || !date) return tg('answerCallbackQuery', { callback_query_id: q.id });
 
   try {
+    if (action === 'today') {
+      await tg('answerCallbackQuery', { callback_query_id: q.id });
+      const tz = await getTz(uid);
+      const [entries, goal] = await Promise.all([getDay(uid, dateKey(tz)), getGoal(uid)]);
+      return await send(chat, todayText(entries, goal));
+    }
+
+    if (action !== 'undo' || !id || !date) return await tg('answerCallbackQuery', { callback_query_id: q.id });
+
     const removed = await undoLast(uid, date, id);
     if (!removed) {
       return await tg('answerCallbackQuery', {
@@ -493,9 +547,10 @@ async function onCallback(q) {
     await tg('answerCallbackQuery', { callback_query_id: q.id, text: 'Отменено ↩️' });
     const names = removed.items.map((i) => i.name).join(', ');
     await tg('editMessageText', {
-      chat_id: q.message.chat.id,
+      chat_id: chat,
       message_id: q.message.message_id,
-      text: `↩️ Отменено: ${names} (−${removed.kcal} ккал)\n\n${progress(entries, goal)}`,
+      parse_mode: 'HTML',
+      text: `↩️ <b>Отменено:</b> ${esc(clip(names, 80))} (−${removed.kcal} ккал)\n\n${LINE}\n${progress(entries, goal)}`,
     });
   } catch (e) {
     console.error('onCallback error', e);
