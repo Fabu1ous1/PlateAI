@@ -30,6 +30,9 @@ export default async function handler(req, res) {
       { command: 'today', description: 'Итоги за сегодня' },
       { command: 'week', description: 'Последние 7 дней' },
       { command: 'undo', description: 'Удалить последнюю запись' },
+      { command: 'water', description: 'Вода: /water 300 или без числа' },
+      { command: 'watergoal', description: 'Норма воды, например /watergoal 2000' },
+      { command: 'profile', description: 'Рассчитать мою норму калорий и БЖУ' },
       { command: 'goal', description: 'Дневная норма, например /goal 2200' },
       { command: 'tz', description: 'Часовой пояс, например /tz Asia/Shanghai' },
       { command: 'help', description: 'Как пользоваться' },
@@ -51,4 +54,3 @@ export default async function handler(req, res) {
     },
   });
 }
-
