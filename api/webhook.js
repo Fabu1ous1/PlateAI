@@ -479,15 +479,26 @@ const WATER_KB = {
 
 /* ============================== Логика бота ============================== */
 
-const DAILY_LIMIT = Number(process.env.DAILY_MESSAGE_LIMIT || 60);
+const DAILY_LIMIT = () => Number(process.env.DAILY_MESSAGE_LIMIT || 60);
+const DAILY_LIMIT_GUEST = () => Number(process.env.DAILY_MESSAGE_LIMIT_GUEST || 20);
 
-function allowed(uid) {
-  const list = (process.env.ALLOWED_USER_IDS || '')
+const idList = (env) =>
+  (process.env[env] || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
-  return list.length === 0 || list.includes(String(uid));
+
+// 'owner' — полный доступ, 'guest' — только запись еды/воды, без настроек, null — доступа нет
+function role(uid) {
+  const owners = idList('ALLOWED_USER_IDS');
+  const guests = idList('GUEST_USER_IDS');
+  if (owners.length === 0 && guests.length === 0) return 'owner'; // список не задан — бот открыт всем
+  if (owners.includes(String(uid))) return 'owner';
+  if (guests.includes(String(uid))) return 'guest';
+  return null;
 }
+const allowed = (uid) => role(uid) !== null;
+const OWNER_ONLY = '🔒 Эта настройка доступна только владельцу бота.';
 
 /* ---------- /profile: расчёт нормы калорий и БЖУ ---------- */
 
@@ -616,18 +627,19 @@ async function onProfileCallback(q, uid, chat) {
 
 /* ---------- запись еды ---------- */
 
-async function logMeal(m, uid, chat, text) {
+async function logMeal(m, uid, chat, text, r) {
   const hasPhoto = Array.isArray(m.photo) && m.photo.length > 0;
   if (!text && !hasPhoto) return send(chat, 'Напиши, что ты съел, или пришли фото 🍽');
 
   const tz = await getTz(uid);
   const date = dateKey(tz);
 
-  // защита баланса API: лимит сообщений в сутки на пользователя
+  // защита баланса API: лимит сообщений в сутки на пользователя (гостям — меньше)
+  const limit = r === 'guest' ? DAILY_LIMIT_GUEST() : DAILY_LIMIT();
   const cntKey = `u:${uid}:cnt:${date}`;
   const n = Number(await redis('INCR', cntKey));
   if (n === 1) await redis('EXPIRE', cntKey, 172800);
-  if (n > DAILY_LIMIT) return send(chat, `Дневной лимит (${DAILY_LIMIT} сообщений) исчерпан. Завтра продолжим 🙂`);
+  if (n > limit) return send(chat, `Дневной лимит (${limit} сообщений) исчерпан. Завтра продолжим 🙂`);
 
   await tg('sendChatAction', { chat_id: chat, action: 'typing' });
   const imageB64 = hasPhoto ? await photoToBase64(m.photo[m.photo.length - 1].file_id) : null;
@@ -665,7 +677,8 @@ async function onMessage(m) {
   const arg = rest.join(' ').trim();
 
   if (cmd === '/id') return send(chat, `Твой Telegram ID: <code>${uid}</code>`);
-  if (!allowed(uid)) return send(chat, `🔒 Бот приватный. Твой ID: <code>${uid}</code>`);
+  const r = role(uid);
+  if (!r) return send(chat, `🔒 Бот приватный. Твой ID: <code>${uid}</code>`);
 
   try {
     switch (cmd) {
@@ -720,6 +733,7 @@ ${waterText(entries, goal)}`, { reply_markup: WATER_KB });
       }
 
       case '/watergoal': {
+        if (r === 'guest') return await send(chat, OWNER_ONLY);
         const goal = parseInt(arg, 10);
         if (!(goal >= 500 && goal <= 8000)) return await send(chat, 'Формат: /watergoal 2000 (миллилитры)');
         await redis('SET', `u:${uid}:watergoal`, goal);
@@ -727,6 +741,7 @@ ${waterText(entries, goal)}`, { reply_markup: WATER_KB });
       }
 
       case '/profile': {
+        if (r === 'guest') return await send(chat, OWNER_ONLY);
         const p = await getProfile(uid);
         if (p) return await send(chat, profileText(p), { reply_markup: REDO_KB });
         return await startProfile(uid, chat);
@@ -737,6 +752,7 @@ ${waterText(entries, goal)}`, { reply_markup: WATER_KB });
         return await send(chat, 'Ок, отменил.');
 
       case '/goal': {
+        if (r === 'guest') return await send(chat, OWNER_ONLY);
         const goal = parseInt(arg, 10);
         if (!(goal >= 800 && goal <= 10000)) return await send(chat, 'Формат: /goal 2200');
         await redis('SET', `u:${uid}:goal`, goal);
@@ -744,6 +760,7 @@ ${waterText(entries, goal)}`, { reply_markup: WATER_KB });
       }
 
       case '/tz': {
+        if (r === 'guest') return await send(chat, OWNER_ONLY);
         if (!arg || !isValidTz(arg)) {
           return await send(chat, 'Формат: /tz Asia/Shanghai (или Europe/Moscow, Asia/Tashkent)');
         }
@@ -757,7 +774,7 @@ ${waterText(entries, goal)}`, { reply_markup: WATER_KB });
           const st = await getState(uid);
           if (st?.step === 'body') return await onBody(uid, chat, st, raw);
         }
-        return await logMeal(m, uid, chat, raw);
+        return await logMeal(m, uid, chat, raw, r);
       }
     }
   } catch (e) {
@@ -769,12 +786,18 @@ ${waterText(entries, goal)}`, { reply_markup: WATER_KB });
 async function onCallback(q) {
   const uid = q.from?.id;
   const chat = q.message?.chat?.id;
-  if (!allowed(uid) || !chat) return tg('answerCallbackQuery', { callback_query_id: q.id });
+  const r = role(uid);
+  if (!r || !chat) return tg('answerCallbackQuery', { callback_query_id: q.id });
 
   const [action, id, date] = String(q.data || '').split(':');
 
   try {
-    if (action === 'pf') return await onProfileCallback(q, uid, chat);
+    if (action === 'pf') {
+      if (r === 'guest') {
+        return tg('answerCallbackQuery', { callback_query_id: q.id, text: 'Доступно только владельцу бота' });
+      }
+      return await onProfileCallback(q, uid, chat);
+    }
 
     if (action === 'w') {
       const tz = await getTz(uid);
