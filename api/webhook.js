@@ -66,6 +66,26 @@ async function addMeal(uid, date, entry) {
 }
 
 // Удаляет последнюю запись дня. Если передан onlyId — только если она совпадает с этим id.
+const waterKey = (uid, date) => `u:${uid}:w:${date}`;
+
+async function addWater(uid, date, ml) {
+  await redis('RPUSH', waterKey(uid, date), JSON.stringify({ ml, at: Date.now() }));
+  await redis('EXPIRE', waterKey(uid, date), TTL);
+}
+async function getWater(uid, date) {
+  const rows = await redis('LRANGE', waterKey(uid, date), 0, -1);
+  return (rows || []).map(parse).filter(Boolean);
+}
+async function undoWaterLast(uid, date) {
+  return parse(await redis('RPOP', waterKey(uid, date)));
+}
+async function getWaterGoal(uid) {
+  const set = await redis('GET', `u:${uid}:watergoal`);
+  if (set) return Number(set);
+  const profile = await getProfile(uid);
+  return profile ? Math.round((profile.w * 30) / 50) * 50 : 2000; // ~30 мл/кг, округление до 50
+}
+
 async function undoLast(uid, date, onlyId) {
   const key = dayKey(uid, date);
   if (onlyId !== undefined) {
@@ -81,6 +101,29 @@ async function getGoal(uid) {
 async function getTz(uid) {
   return (await redis('GET', `u:${uid}:tz`)) || process.env.DEFAULT_TZ || 'Asia/Shanghai';
 }
+
+// Профиль (рост, вес, цель) и рассчитанная норма
+async function getProfile(uid) {
+  const raw = await redis('GET', `u:${uid}:profile`);
+  return raw ? parse(raw) : null;
+}
+// Цели БЖУ показываем, только пока дневная норма совпадает с рассчитанной по профилю
+async function getTargets(uid) {
+  const [goal, profile] = await Promise.all([getGoal(uid), getProfile(uid)]);
+  const macros = profile && profile.kcal === goal ? { p: profile.p, f: profile.f, c: profile.c } : null;
+  return { goal, macros };
+}
+async function dayView(uid, date) {
+  const [entries, t] = await Promise.all([getDay(uid, date), getTargets(uid)]);
+  return { entries, goal: t.goal, macros: t.macros };
+}
+// Состояние мастера /profile (живёт 1 час)
+async function getState(uid) {
+  const raw = await redis('GET', `u:${uid}:pf`);
+  return raw ? parse(raw) : null;
+}
+const setState = (uid, st) => redis('SET', `u:${uid}:pf`, JSON.stringify(st), 'EX', 3600);
+const clearState = (uid) => redis('DEL', `u:${uid}:pf`);
 
 /* ============================== Время ============================== */
 
@@ -303,11 +346,16 @@ const LINE = '━━━━━━━━━━';
 const BUTTON_TEXT = {
   '📊 Сегодня': '/today',
   '📅 Неделя': '/week',
+  '💧 Вода': '/water',
   '↩️ Отменить': '/undo',
   'ℹ️ Помощь': '/help',
 };
 const MAIN_KEYBOARD = {
-  keyboard: [[{ text: '📊 Сегодня' }, { text: '📅 Неделя' }], [{ text: '↩️ Отменить' }, { text: 'ℹ️ Помощь' }]],
+  keyboard: [
+    [{ text: '📊 Сегодня' }, { text: '📅 Неделя' }],
+    [{ text: '💧 Вода' }, { text: '↩️ Отменить' }],
+    [{ text: 'ℹ️ Помощь' }],
+  ],
   resize_keyboard: true,
   is_persistent: true,
   input_field_placeholder: 'Что съел? Например: 2 яйца и 150 г гречки',
@@ -325,8 +373,10 @@ const helpText = (name) => `👋 <b>${name ? `Привет, ${esc(name)}!` : 'П
 /today — итоги за сегодня
 /week — последние 7 дней
 /undo — удалить последнюю запись
-/goal 2200 — дневная норма ккал
+/profile — рассчитать мою норму калорий и БЖУ
+/goal 2200 — задать норму вручную
 /tz Asia/Shanghai — часовой пояс
+/water — вода за день
 /id — твой Telegram ID`;
 
 const totalOf = (items) =>
@@ -342,21 +392,23 @@ const daySum = (entries) =>
   );
 
 // Полоска прогресса: 🟩 в норме, 🟨 почти норма, 🟥 перебор
-const bar = (value, goal, n = 10) => {
+const bar = (value, goal, n = 10, fillEmoji = null) => {
   const pct = goal > 0 ? value / goal : 0;
   const filled = Math.max(0, Math.min(n, Math.round(pct * n)));
-  const on = pct > 1 ? '🟥' : pct > 0.9 ? '🟨' : '🟩';
+  const on = fillEmoji || (pct > 1 ? '🟥' : pct > 0.9 ? '🟨' : '🟩');
   return on.repeat(filled) + '⬜'.repeat(n - filled);
 };
 
-function progress(entries, goal) {
+function progress(entries, goal, macros) {
   const t = daySum(entries);
   const left = goal - t.kcal;
   const pct = goal > 0 ? Math.round((t.kcal / goal) * 100) : 0;
+  const m = (v, target) => (target ? `${v}/${target}` : `${v}`);
   return (
     `📊 <b>Сегодня: ${t.kcal} / ${goal} ккал</b> · ${pct}%\n${bar(t.kcal, goal)}\n` +
     (left >= 0 ? `Осталось: <b>${left} ккал</b>` : `Перебор: <b>+${-left} ккал</b>`) +
-    `\n🥩 Б ${t.p} · 🧈 Ж ${t.f} · 🍞 У ${t.c}`
+    `\n\n<i>Съедено БЖУ${macros ? ' / норма' : ''}, г:</i>\n` +
+    `🥩 Б ${m(t.p, macros?.p)} · 🧈 Ж ${m(t.f, macros?.f)} · 🍞 У ${m(t.c, macros?.c)}`
   );
 }
 
@@ -371,15 +423,16 @@ function mealText(entry, note) {
   );
 }
 
-function todayText(entries, goal) {
+function todayText(entries, goal, macros, water, waterGoal) {
+  const waterLine = `\n\n${LINE}\n${waterText(water, waterGoal)}`;
   if (!entries.length) {
-    return `🍽 <b>Сегодня пока пусто</b>\nНапиши, что съел, или пришли фото 📸\n🎯 Норма: ${goal} ккал`;
+    return `🍽 <b>Сегодня пока пусто</b>\nНапиши, что съел, или пришли фото 📸\n🎯 Норма: ${goal} ккал${waterLine}`;
   }
   const lines = entries.map((e) => {
     const names = e.items.map((i) => `${i.emoji || '🍽'} ${i.name}`).join(', ');
     return `<code>${esc(e.at)}</code> ${esc(clip(names, 80))} — <b>${e.kcal}</b>`;
   });
-  return `🗒 <b>Сегодня</b>\n${lines.join('\n')}\n\n${LINE}\n${progress(entries, goal)}`;
+  return `🗒 <b>Сегодня</b>\n${lines.join('\n')}\n\n${LINE}\n${progress(entries, goal, macros)}${waterLine}`;
 }
 
 async function weekText(uid, tz, goal) {
@@ -401,6 +454,29 @@ async function weekText(uid, tz, goal) {
   return `📅 <b>Последние 7 дней</b> (норма ${goal})\n\n${lines.join('\n')}\n\n📈 В среднем: <b>${avg} ккал/день</b>`;
 }
 
+const waterSum = (entries) => entries.reduce((s, e) => s + e.ml, 0);
+
+function waterText(entries, goal) {
+  const ml = waterSum(entries);
+  const l = (ml / 1000).toFixed(1).replace('.0', '');
+  const goalL = (goal / 1000).toFixed(1).replace('.0', '');
+  const cups = entries.length;
+  return (
+    `💧 <b>Вода: ${l} / ${goalL} л</b>${cups ? ` · ${cups} ${cups === 1 ? 'порция' : cups < 5 ? 'порции' : 'порций'}` : ''}\n${bar(ml, goal, 8, '💧')}`
+  );
+}
+
+const WATER_KB = {
+  inline_keyboard: [
+    [
+      { text: '+250 мл', callback_data: 'w:250' },
+      { text: '+330 мл', callback_data: 'w:330' },
+      { text: '+500 мл', callback_data: 'w:500' },
+    ],
+    [{ text: '↩️ Отменить последнюю', callback_data: 'w:undo' }],
+  ],
+};
+
 /* ============================== Логика бота ============================== */
 
 const DAILY_LIMIT = Number(process.env.DAILY_MESSAGE_LIMIT || 60);
@@ -412,6 +488,133 @@ function allowed(uid) {
     .filter(Boolean);
   return list.length === 0 || list.includes(String(uid));
 }
+
+/* ---------- /profile: расчёт нормы калорий и БЖУ ---------- */
+
+const ACT = {
+  1: { f: 1.2, t: 'Сидячий образ жизни' },
+  2: { f: 1.375, t: 'Лёгкая: 1–3 тренировки в неделю' },
+  3: { f: 1.55, t: 'Умеренная: 3–5 тренировок' },
+  4: { f: 1.725, t: 'Высокая: 6–7 тренировок' },
+  5: { f: 1.9, t: 'Очень высокая: тяжёлая работа + спорт' },
+};
+const GOALS = { lose: '📉 Похудеть', keep: '⚖️ Держать вес', gain: '📈 Набрать массу' };
+
+const kb = (rows) => ({ inline_keyboard: rows });
+const SEX_KB = kb([[{ text: '👨 Мужчина', callback_data: 'pf:sex:m' }, { text: '👩 Женщина', callback_data: 'pf:sex:f' }]]);
+const ACT_KB = kb(Object.entries(ACT).map(([k, v]) => [{ text: v.t, callback_data: `pf:act:${k}` }]));
+const GOAL_KB = kb(Object.entries(GOALS).map(([k, t]) => [{ text: t, callback_data: `pf:goal:${k}` }]));
+const REDO_KB = kb([[{ text: '✏️ Заполнить заново', callback_data: 'pf:start' }]]);
+const ASK_SEX = '🎯 <b>Рассчитаю твою норму</b>\n\nШаг 1 из 4. Выбери пол:';
+
+// Формула Миффлина — Сан-Жеора + коэффициент активности
+function calcPlan({ sex, age, h, w, act, goal }) {
+  const bmr = 10 * w + 6.25 * h - 5 * age + (sex === 'm' ? 5 : -161);
+  const tdee = bmr * ACT[act].f;
+  let kcal = goal === 'lose' ? tdee * 0.85 : goal === 'gain' ? tdee * 1.1 : tdee;
+  kcal = Math.max(kcal, sex === 'm' ? 1500 : 1200); // нижняя граница
+  kcal = Math.round(kcal / 10) * 10;
+  const p = Math.round(w * (goal === 'lose' ? 2.0 : goal === 'gain' ? 1.8 : 1.6));
+  const f = Math.round(w * 0.9);
+  const c = Math.max(50, Math.round((kcal - p * 4 - f * 9) / 4));
+  return { bmr: Math.round(bmr), tdee: Math.round(tdee), kcal, p, f, c };
+}
+
+function profileText(p) {
+  return (
+    `🎯 <b>Твоя норма</b>\n\n` +
+    `${p.sex === 'm' ? 'Мужчина' : 'Женщина'}, ${p.age} лет, ${p.h} см, ${p.w} кг\n` +
+    `Активность: ${ACT[p.act].t}\nЦель: ${GOALS[p.goal]}\n\n` +
+    `🔥 <b>${p.kcal} ккал</b> в день\n` +
+    `🥩 Белки <b>${p.p} г</b> · 🧈 Жиры <b>${p.f} г</b> · 🍞 Углеводы <b>${p.c} г</b>\n\n` +
+    `<i>Обмен веществ ${p.bmr} ккал, с учётом активности ${p.tdee} ккал. ` +
+    `Это ориентир по формуле Миффлина — Сан-Жеора, а не медицинская рекомендация.</i>`
+  );
+}
+
+async function startProfile(uid, chat) {
+  await setState(uid, { step: 'sex', data: {} });
+  return send(chat, ASK_SEX, { reply_markup: SEX_KB });
+}
+
+// Шаг 2: пользователь пишет «возраст рост вес»
+async function onBody(uid, chat, st, raw) {
+  const nums = (raw.match(/\d+(?:[.,]\d+)?/g) || []).map((x) => parseFloat(x.replace(',', '.')));
+  if (nums.length < 3) {
+    return send(chat, 'Нужно три числа через пробел: <b>возраст рост вес</b>, например <code>19 178 70</code>');
+  }
+  const [age, h, w] = nums;
+  if (!(age >= 14 && age <= 90 && h >= 120 && h <= 230 && w >= 30 && w <= 250)) {
+    return send(chat, 'Проверь числа: возраст 14–90, рост 120–230 см, вес 30–250 кг. Формат: <code>19 178 70</code>');
+  }
+  st.data.age = Math.round(age);
+  st.data.h = Math.round(h);
+  st.data.w = Math.round(w * 10) / 10;
+  st.step = 'act';
+  await setState(uid, st);
+  return send(chat, 'Шаг 3 из 4. Уровень активности:', { reply_markup: ACT_KB });
+}
+
+async function onProfileCallback(q, uid, chat) {
+  const [, kind, val] = String(q.data).split(':');
+  await tg('answerCallbackQuery', { callback_query_id: q.id });
+  const edit = (text, markup) =>
+    tg('editMessageText', {
+      chat_id: chat,
+      message_id: q.message.message_id,
+      parse_mode: 'HTML',
+      text,
+      ...(markup ? { reply_markup: markup } : {}),
+    });
+
+  if (kind === 'start') {
+    await setState(uid, { step: 'sex', data: {} });
+    return edit(ASK_SEX, SEX_KB);
+  }
+
+  const st = await getState(uid);
+  if (!st) return edit('Сессия истекла. Нажми /profile, чтобы начать заново.');
+
+  if (kind === 'sex' && (val === 'm' || val === 'f')) {
+    st.data.sex = val;
+    st.step = 'body';
+    await setState(uid, st);
+    return edit(
+      `✅ Пол: <b>${val === 'm' ? 'мужчина' : 'женщина'}</b>\n\n` +
+        `Шаг 2 из 4. Напиши <b>возраст, рост (см) и вес (кг)</b> через пробел, например: <code>19 178 70</code>`,
+    );
+  }
+
+  if (kind === 'act' && ACT[val] && st.data.age) {
+    st.data.act = Number(val);
+    st.step = 'goal';
+    await setState(uid, st);
+    return edit(`✅ Активность: <b>${ACT[val].t}</b>\n\nШаг 4 из 4. Какая цель?`, GOAL_KB);
+  }
+
+  if (kind === 'goal' && GOALS[val] && st.data.act) {
+    const d = st.data;
+    let goal = val;
+    let note = '';
+    const bmi = d.w / Math.pow(d.h / 100, 2);
+    if (goal === 'lose' && d.age < 18) {
+      goal = 'keep';
+      note = '\n\n⚠️ До 18 лет дефицит калорий не рассчитываю — поставил «Держать вес». Про похудение лучше поговорить с врачом.';
+    } else if (goal === 'lose' && bmi < 18.5) {
+      goal = 'keep';
+      note = '\n\n⚠️ При таком росте и весе худеть не нужно — поставил «Держать вес».';
+    }
+    const profile = { ...d, goal, ...calcPlan({ ...d, goal }) };
+    await redis('SET', `u:${uid}:profile`, JSON.stringify(profile));
+    await redis('SET', `u:${uid}:goal`, profile.kcal);
+    await clearState(uid);
+    return edit(profileText(profile) + note, REDO_KB);
+  }
+
+  return undefined;
+}
+
+/* ---------- запись еды ---------- */
 
 async function logMeal(m, uid, chat, text) {
   const hasPhoto = Array.isArray(m.photo) && m.photo.length > 0;
@@ -438,8 +641,8 @@ async function logMeal(m, uid, chat, text) {
   const entry = { id: m.message_id, at: timeNow(tz), items: ai.items, kcal: t.kcal, p: t.p, f: t.f, c: t.c };
   await addMeal(uid, date, entry);
 
-  const [entries, goal] = await Promise.all([getDay(uid, date), getGoal(uid)]);
-  return send(chat, `${mealText(entry, ai.note)}\n\n${LINE}\n${progress(entries, goal)}`, {
+  const { entries, goal, macros } = await dayView(uid, date);
+  return send(chat, `${mealText(entry, ai.note)}\n\n${LINE}\n${progress(entries, goal, macros)}`, {
     reply_markup: {
       inline_keyboard: [
         [
@@ -472,8 +675,13 @@ async function onMessage(m) {
 
       case '/today': {
         const tz = await getTz(uid);
-        const [entries, goal] = await Promise.all([getDay(uid, dateKey(tz)), getGoal(uid)]);
-        return await send(chat, todayText(entries, goal));
+        const date = dateKey(tz);
+        const [{ entries, goal, macros }, water, waterGoal] = await Promise.all([
+          dayView(uid, date),
+          getWater(uid, date),
+          getWaterGoal(uid),
+        ]);
+        return await send(chat, todayText(entries, goal, macros, water, waterGoal));
       }
 
       case '/week': {
@@ -486,13 +694,47 @@ async function onMessage(m) {
         const date = dateKey(tz);
         const removed = await undoLast(uid, date);
         if (!removed) return await send(chat, 'Сегодня нечего отменять 🤷');
-        const [entries, goal] = await Promise.all([getDay(uid, date), getGoal(uid)]);
+        const { entries, goal, macros } = await dayView(uid, date);
         const names = removed.items.map((i) => i.name).join(', ');
         return await send(
           chat,
-          `↩️ <b>Удалил:</b> ${esc(clip(names, 80))} (−${removed.kcal} ккал)\n\n${LINE}\n${progress(entries, goal)}`,
+          `↩️ <b>Удалил:</b> ${esc(clip(names, 80))} (−${removed.kcal} ккал)\n\n${LINE}\n${progress(entries, goal, macros)}`,
         );
       }
+
+      case '/water': {
+        if (arg) {
+          const ml = parseInt(arg, 10);
+          if (!(ml > 0 && ml <= 3000)) return await send(chat, 'Формат: /water 300 (миллилитры, до 3000 за раз)');
+          const tz = await getTz(uid);
+          const date = dateKey(tz);
+          await addWater(uid, date, ml);
+          const [entries, goal] = await Promise.all([getWater(uid, date), getWaterGoal(uid)]);
+          return await send(chat, `💧 Добавил ${ml} мл
+
+${waterText(entries, goal)}`, { reply_markup: WATER_KB });
+        }
+        const tz = await getTz(uid);
+        const [entries, goal] = await Promise.all([getWater(uid, dateKey(tz)), getWaterGoal(uid)]);
+        return await send(chat, waterText(entries, goal), { reply_markup: WATER_KB });
+      }
+
+      case '/watergoal': {
+        const goal = parseInt(arg, 10);
+        if (!(goal >= 500 && goal <= 8000)) return await send(chat, 'Формат: /watergoal 2000 (миллилитры)');
+        await redis('SET', `u:${uid}:watergoal`, goal);
+        return await send(chat, `💧 Норма воды: <b>${(goal / 1000).toFixed(1)} л</b> в день`);
+      }
+
+      case '/profile': {
+        const p = await getProfile(uid);
+        if (p) return await send(chat, profileText(p), { reply_markup: REDO_KB });
+        return await startProfile(uid, chat);
+      }
+
+      case '/cancel':
+        await clearState(uid);
+        return await send(chat, 'Ок, отменил.');
 
       case '/goal': {
         const goal = parseInt(arg, 10);
@@ -509,9 +751,14 @@ async function onMessage(m) {
         return await send(chat, `🕒 Часовой пояс: <b>${esc(arg)}</b>`);
       }
 
-      default:
+      default: {
         if (cmd) return await send(chat, 'Не знаю такую команду. Список: /help');
+        if (raw && !m.photo) {
+          const st = await getState(uid);
+          if (st?.step === 'body') return await onBody(uid, chat, st, raw);
+        }
         return await logMeal(m, uid, chat, raw);
+      }
     }
   } catch (e) {
     console.error('onMessage error', e);
@@ -527,11 +774,42 @@ async function onCallback(q) {
   const [action, id, date] = String(q.data || '').split(':');
 
   try {
+    if (action === 'pf') return await onProfileCallback(q, uid, chat);
+
+    if (action === 'w') {
+      const tz = await getTz(uid);
+      const date = dateKey(tz);
+      if (id === 'undo') {
+        const removed = await undoWaterLast(uid, date);
+        await tg('answerCallbackQuery', {
+          callback_query_id: q.id,
+          text: removed ? `Отменил ${removed.ml} мл ↩️` : 'Сегодня нечего отменять',
+        });
+      } else {
+        await addWater(uid, date, Number(id));
+        await tg('answerCallbackQuery', { callback_query_id: q.id, text: `+${id} мл 💧` });
+      }
+      const [entries, goal] = await Promise.all([getWater(uid, date), getWaterGoal(uid)]);
+      return await tg('editMessageText', {
+        chat_id: chat,
+        message_id: q.message.message_id,
+        parse_mode: 'HTML',
+        text: waterText(entries, goal),
+        reply_markup: WATER_KB,
+      });
+    }
+
+
     if (action === 'today') {
       await tg('answerCallbackQuery', { callback_query_id: q.id });
       const tz = await getTz(uid);
-      const [entries, goal] = await Promise.all([getDay(uid, dateKey(tz)), getGoal(uid)]);
-      return await send(chat, todayText(entries, goal));
+      const date = dateKey(tz);
+      const [{ entries, goal, macros }, water, waterGoal] = await Promise.all([
+        dayView(uid, date),
+        getWater(uid, date),
+        getWaterGoal(uid),
+      ]);
+      return await send(chat, todayText(entries, goal, macros, water, waterGoal));
     }
 
     if (action !== 'undo' || !id || !date) return await tg('answerCallbackQuery', { callback_query_id: q.id });
@@ -543,14 +821,14 @@ async function onCallback(q) {
         text: 'Уже отменено или есть более новая запись',
       });
     }
-    const [entries, goal] = await Promise.all([getDay(uid, date), getGoal(uid)]);
+    const { entries, goal, macros } = await dayView(uid, date);
     await tg('answerCallbackQuery', { callback_query_id: q.id, text: 'Отменено ↩️' });
     const names = removed.items.map((i) => i.name).join(', ');
     await tg('editMessageText', {
       chat_id: chat,
       message_id: q.message.message_id,
       parse_mode: 'HTML',
-      text: `↩️ <b>Отменено:</b> ${esc(clip(names, 80))} (−${removed.kcal} ккал)\n\n${LINE}\n${progress(entries, goal)}`,
+      text: `↩️ <b>Отменено:</b> ${esc(clip(names, 80))} (−${removed.kcal} ккал)\n\n${LINE}\n${progress(entries, goal, macros)}`,
     });
   } catch (e) {
     console.error('onCallback error', e);
