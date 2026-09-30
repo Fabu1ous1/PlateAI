@@ -1,6 +1,13 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { Appear, Bubble, InlineButtons, Typing } from "../components/Bubbles";
 import { Phone } from "../components/Phone";
+import { Sfx } from "../components/Sfx";
 import { C, FONT } from "../theme";
 
 // Тайминги сцены (кадры, 30 fps)
@@ -39,11 +46,17 @@ const MealReply: React.FC<{
   const total = items.reduce((s, i) => s + i.kcal, 0);
   // строки ответа проявляются по очереди
   const line = (i: number) => ({
-    opacity: interpolate(f, [at + i * 3, at + i * 3 + 8], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+    opacity: interpolate(f, [at + i * 3, at + i * 3 + 8], [0, 1], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    }),
   });
   // счётчик дня «доезжает» до нового значения
   const day = Math.round(
-    interpolate(f, [at + 20, at + 45], [dayFrom, dayTo], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+    interpolate(f, [at + 20, at + 45], [dayFrom, dayTo], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    }),
   );
   const pct = Math.round((day / GOAL) * 100);
   return (
@@ -65,14 +78,26 @@ const MealReply: React.FC<{
             <br />
             🥩 Б {macros[0]} · 🧈 Ж {macros[1]} · 🍞 У {macros[2]}
           </div>
-          <div style={{ ...line(items.length + 2), color: "#4A5D70", letterSpacing: -2 }}>{LINE}</div>
+          <div
+            style={{
+              ...line(items.length + 2),
+              color: "#4A5D70",
+              letterSpacing: -2,
+            }}
+          >
+            {LINE}
+          </div>
           <div style={line(items.length + 3)}>
             📊{" "}
             <b>
-              Сегодня: <span style={{ fontVariantNumeric: "tabular-nums" }}>{day}</span> / {GOAL} ккал
+              Сегодня:{" "}
+              <span style={{ fontVariantNumeric: "tabular-nums" }}>{day}</span>{" "}
+              / {GOAL} ккал
             </b>{" "}
             · {pct}%
-            <div style={{ fontSize: 34, letterSpacing: 2 }}>{bar(day, GOAL)}</div>
+            <div style={{ fontSize: 34, letterSpacing: 2 }}>
+              {bar(day, GOAL)}
+            </div>
             Осталось: <b>{GOAL - day} ккал</b>
             <div style={{ height: 10 }} />
             <i style={{ color: "#AFC0CF" }}>Съедено БЖУ, г:</i>
@@ -89,14 +114,15 @@ const MealReply: React.FC<{
 };
 
 // «Фото» тарелки, нарисованное средствами CSS
-const PlatePhoto: React.FC = () => (
+export const PlatePhoto: React.FC = () => (
   <div
     style={{
       width: 480,
       height: 400,
       borderRadius: 30,
       borderBottomRightRadius: 8,
-      background: "repeating-linear-gradient(100deg, #6B4A2E 0 38px, #7A5536 38px 70px, #62432A 70px 110px)",
+      background:
+        "repeating-linear-gradient(100deg, #6B4A2E 0 38px, #7A5536 38px 70px, #62432A 70px 110px)",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -109,23 +135,45 @@ const PlatePhoto: React.FC = () => (
         width: 340,
         height: 340,
         borderRadius: 170,
-        background: "radial-gradient(circle, #FFFFFF 0 55%, #E9EDEA 56% 64%, #FFFFFF 65%)",
+        background:
+          "radial-gradient(circle, #FFFFFF 0 55%, #E9EDEA 56% 64%, #FFFFFF 65%)",
         boxShadow: "0 20px 40px rgba(0,0,0,0.45)",
         position: "relative",
       }}
     >
-      <span style={{ position: "absolute", fontSize: 120, left: 45, top: 45 }}>🍗</span>
-      <span style={{ position: "absolute", fontSize: 100, left: 180, top: 75 }}>🥔</span>
-      <span style={{ position: "absolute", fontSize: 110, left: 105, top: 170 }}>🥗</span>
+      <span style={{ position: "absolute", fontSize: 120, left: 45, top: 45 }}>
+        🍗
+      </span>
+      <span style={{ position: "absolute", fontSize: 100, left: 180, top: 75 }}>
+        🥔
+      </span>
+      <span
+        style={{ position: "absolute", fontSize: 110, left: 105, top: 170 }}
+      >
+        🥗
+      </span>
     </div>
-    <span style={{ position: "absolute", fontSize: 70, right: 24, top: 150, transform: "rotate(20deg)" }}>🍴</span>
+    <span
+      style={{
+        position: "absolute",
+        fontSize: 70,
+        right: 24,
+        top: 150,
+        transform: "rotate(20deg)",
+      }}
+    >
+      🍴
+    </span>
   </div>
 );
 
 // Вспышка «сканирования» фото
 const Scan: React.FC = () => {
   const f = useCurrentFrame();
-  const y = interpolate(f, [T.photo + 6, T.reply2], [0, 100], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const y = interpolate(f, [T.photo + 6, T.reply2], [0, 100], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
   if (f < T.photo + 6 || f > T.reply2) return null;
   return (
     <div
@@ -143,12 +191,19 @@ const Scan: React.FC = () => {
   );
 };
 
-const Caption: React.FC<{ from: number; to: number; children: React.ReactNode }> = ({ from, to, children }) => {
+const Caption: React.FC<{
+  from: number;
+  to: number;
+  children: React.ReactNode;
+}> = ({ from, to, children }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   if (f < from || f >= to) return null;
   const s = spring({ frame: f - from, fps, config: { damping: 14 } });
-  const out = interpolate(f, [to - 8, to], [1, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const out = interpolate(f, [to - 8, to], [1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
   return (
     <div
       style={{
@@ -173,17 +228,33 @@ export const ChatDemo: React.FC = () => {
   const { fps } = useVideoConfig();
   const phoneIn = spring({ frame: f, fps, config: { damping: 16 } });
 
-  const typed = f >= T.send1 ? "" : TEXT.slice(0, Math.max(0, Math.floor((f - T.typeStart) / 1.6)));
+  const typed =
+    f >= T.send1
+      ? ""
+      : TEXT.slice(0, Math.max(0, Math.floor((f - T.typeStart) / 1.6)));
   const cursor = f < T.send1 && Math.floor(f / 8) % 2 === 0;
 
   // лёгкий «наезд камеры» на ответ бота
-  const zoom = interpolate(f, [T.reply1, T.reply1 + 40, T.photo - 10, T.photo], [1, 1.04, 1.04, 1], {
-    extrapolateLeft: "clamp",
-    extrapolateRight: "clamp",
-  });
+  const zoom = interpolate(
+    f,
+    [T.reply1, T.reply1 + 40, T.photo - 10, T.photo],
+    [1, 1.04, 1.04, 1],
+    {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    },
+  );
 
   return (
     <AbsoluteFill style={{ fontFamily: FONT, alignItems: "center" }}>
+      <Sfx at={T.typeStart} name="typing" volume={0.35} />
+      <Sfx at={T.send1} name="send" volume={0.4} />
+      <Sfx at={T.reply1} name="pop" volume={0.45} />
+      <Sfx at={T.reply1 + 45} name="ding" volume={0.25} />
+      <Sfx at={T.photo - 6} name="shutter" volume={0.6} />
+      <Sfx at={T.photo} name="send" volume={0.4} />
+      <Sfx at={T.reply2} name="pop" volume={0.45} />
+      <Sfx at={T.reply2 + 45} name="ding" volume={0.25} />
       <Caption from={0} to={T.photo - 4}>
         Напиши, что съел ✍️
       </Caption>
@@ -217,7 +288,13 @@ export const ChatDemo: React.FC = () => {
             dayMacros={[19, 12, 33]}
           />
           <Appear at={T.photo} h={420} side="out">
-            <div style={{ position: "relative", borderRadius: 30, overflow: "hidden" }}>
+            <div
+              style={{
+                position: "relative",
+                borderRadius: 30,
+                overflow: "hidden",
+              }}
+            >
               <PlatePhoto />
               <Scan />
             </div>

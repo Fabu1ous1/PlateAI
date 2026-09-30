@@ -2,12 +2,12 @@ import { spring, useCurrentFrame, useVideoConfig } from "remotion";
 import { C } from "../theme";
 
 // Появление сообщения: вырастает по высоте (лента плавно едет вверх) и «выпрыгивает»
-export const Appear: React.FC<{ at: number; h: number; side: "in" | "out"; children: React.ReactNode }> = ({
-  at,
-  h,
-  side,
-  children,
-}) => {
+export const Appear: React.FC<{
+  at: number;
+  h: number;
+  side: "in" | "out";
+  children: React.ReactNode;
+}> = ({ at, h, side, children }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   if (f < at) return null;
@@ -35,11 +35,11 @@ export const Appear: React.FC<{ at: number; h: number; side: "in" | "out"; child
   );
 };
 
-export const Bubble: React.FC<{ side: "in" | "out"; children: React.ReactNode; time?: string }> = ({
-  side,
-  children,
-  time,
-}) => (
+export const Bubble: React.FC<{
+  side: "in" | "out";
+  children: React.ReactNode;
+  time?: string;
+}> = ({ side, children, time }) => (
   <div
     style={{
       background: side === "out" ? C.tgBubbleOut : C.tgBubbleIn,
@@ -56,7 +56,14 @@ export const Bubble: React.FC<{ side: "in" | "out"; children: React.ReactNode; t
   >
     {children}
     {time ? (
-      <div style={{ textAlign: "right", fontSize: 22, color: side === "out" ? "#8FB8DB" : "#6D8196", marginTop: 2 }}>
+      <div
+        style={{
+          textAlign: "right",
+          fontSize: 22,
+          color: side === "out" ? "#8FB8DB" : "#6D8196",
+          marginTop: 2,
+        }}
+      >
         {time}
         {side === "out" ? " ✓✓" : ""}
       </div>
@@ -64,7 +71,10 @@ export const Bubble: React.FC<{ side: "in" | "out"; children: React.ReactNode; t
   </div>
 );
 
-export const Typing: React.FC<{ from: number; to: number }> = ({ from, to }) => {
+export const Typing: React.FC<{ from: number; to: number }> = ({
+  from,
+  to,
+}) => {
   const f = useCurrentFrame();
   if (f < from || f >= to) return null;
   return (
@@ -87,7 +97,8 @@ export const Typing: React.FC<{ from: number; to: number }> = ({ from, to }) => 
               height: 16,
               borderRadius: 8,
               background: "#8FA3B6",
-              opacity: 0.35 + 0.65 * Math.max(0, Math.sin((f - from) / 3 - i * 0.9)),
+              opacity:
+                0.35 + 0.65 * Math.max(0, Math.sin((f - from) / 3 - i * 0.9)),
             }}
           />
         ))}

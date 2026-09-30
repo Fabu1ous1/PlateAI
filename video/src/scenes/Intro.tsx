@@ -1,5 +1,11 @@
-import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { Logo } from "../components/Logo";
+import { Sfx } from "../components/Sfx";
 import { C, FONT } from "../theme";
 
 // Появление бренда
@@ -11,11 +17,31 @@ export const Intro: React.FC = () => {
   const letters = "PlateAI".split("");
 
   return (
-    <AbsoluteFill style={{ fontFamily: FONT, alignItems: "center", justifyContent: "center" }}>
+    <AbsoluteFill
+      style={{
+        fontFamily: FONT,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Sfx at={0} name="pop" volume={0.5} />
+      <Sfx at={30} name="ding" volume={0.35} />
       <Logo size={360} />
-      <div style={{ marginTop: 60, fontSize: 170, fontWeight: 900, letterSpacing: -4, display: "flex" }}>
+      <div
+        style={{
+          marginTop: 60,
+          fontSize: 170,
+          fontWeight: 900,
+          letterSpacing: -4,
+          display: "flex",
+        }}
+      >
         {letters.map((l, i) => {
-          const s = spring({ frame: f - 14 - i * 2, fps, config: { damping: 12 } });
+          const s = spring({
+            frame: f - 14 - i * 2,
+            fps,
+            config: { damping: 12 },
+          });
           return (
             <span
               key={i}
@@ -45,7 +71,8 @@ export const Intro: React.FC = () => {
       >
         Калории и БЖУ за секунды
         <br />
-        прямо в <span style={{ color: "#5AB3F0", fontWeight: 800 }}>Telegram</span>
+        прямо в{" "}
+        <span style={{ color: "#5AB3F0", fontWeight: 800 }}>Telegram</span>
       </div>
     </AbsoluteFill>
   );

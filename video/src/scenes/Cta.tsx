@@ -1,5 +1,12 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
 import { Logo } from "../components/Logo";
+import { Sfx } from "../components/Sfx";
 import { C, FONT } from "../theme";
 
 export const Cta: React.FC<{ botHandle: string }> = ({ botHandle }) => {
@@ -7,11 +14,23 @@ export const Cta: React.FC<{ botHandle: string }> = ({ botHandle }) => {
   const { fps } = useVideoConfig();
   const t = spring({ frame: f - 10, fps, config: { damping: 14 } });
   const btn = spring({ frame: f - 24, fps, config: { damping: 10 } });
-  const pulse = 1 + Math.max(0, Math.sin((f - 40) / 7)) * 0.04 * (f > 40 ? 1 : 0);
-  const handle = interpolate(f, [34, 46], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const pulse =
+    1 + Math.max(0, Math.sin((f - 40) / 7)) * 0.04 * (f > 40 ? 1 : 0);
+  const handle = interpolate(f, [34, 46], [0, 1], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
+  });
 
   return (
-    <AbsoluteFill style={{ fontFamily: FONT, alignItems: "center", justifyContent: "center" }}>
+    <AbsoluteFill
+      style={{
+        fontFamily: FONT,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Sfx at={24} name="pop" volume={0.5} />
+      <Sfx at={40} name="ding" volume={0.4} />
       <Logo size={260} />
       <div
         style={{
@@ -44,7 +63,15 @@ export const Cta: React.FC<{ botHandle: string }> = ({ botHandle }) => {
         ✈️ Открыть в Telegram
       </div>
       {botHandle ? (
-        <div style={{ marginTop: 44, fontSize: 56, fontWeight: 700, color: C.text, opacity: handle }}>
+        <div
+          style={{
+            marginTop: 44,
+            fontSize: 56,
+            fontWeight: 700,
+            color: C.text,
+            opacity: handle,
+          }}
+        >
           {botHandle}
         </div>
       ) : null}

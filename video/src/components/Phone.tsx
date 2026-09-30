@@ -1,11 +1,11 @@
 import { C, FONT } from "../theme";
 
 // Корпус телефона + шапка чата Telegram
-export const Phone: React.FC<{ children: React.ReactNode; inputText: string; cursor: boolean }> = ({
-  children,
-  inputText,
-  cursor,
-}) => (
+export const Phone: React.FC<{
+  children: React.ReactNode;
+  inputText: string;
+  cursor: boolean;
+}> = ({ children, inputText, cursor }) => (
   <div
     style={{
       width: 900,
@@ -54,8 +54,12 @@ export const Phone: React.FC<{ children: React.ReactNode; inputText: string; cur
           🍽
         </div>
         <div>
-          <div style={{ color: C.text, fontSize: 38, fontWeight: 700 }}>PlateAI</div>
-          <div style={{ color: "#6D8196", fontSize: 28, fontWeight: 500 }}>бот</div>
+          <div style={{ color: C.text, fontSize: 38, fontWeight: 700 }}>
+            PlateAI
+          </div>
+          <div style={{ color: "#6D8196", fontSize: 28, fontWeight: 500 }}>
+            бот
+          </div>
         </div>
       </div>
       {/* лента сообщений: прижата к низу, старые уезжают вверх */}

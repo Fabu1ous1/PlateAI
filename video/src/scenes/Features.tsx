@@ -1,4 +1,10 @@
-import { AbsoluteFill, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
+import { Sfx } from "../components/Sfx";
 import { C, FONT } from "../theme";
 
 const FEATURES = [
@@ -13,7 +19,17 @@ export const Features: React.FC = () => {
   const { fps } = useVideoConfig();
   const head = spring({ frame: f, fps, config: { damping: 14 } });
   return (
-    <AbsoluteFill style={{ fontFamily: FONT, alignItems: "center", justifyContent: "center", gap: 36 }}>
+    <AbsoluteFill
+      style={{
+        fontFamily: FONT,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 36,
+      }}
+    >
+      {FEATURES.map((x, i) => (
+        <Sfx key={x.t} at={10 + i * 7} name="pop" volume={0.3} />
+      ))}
       <div
         style={{
           fontSize: 88,
@@ -28,7 +44,11 @@ export const Features: React.FC = () => {
         Всё в одном <span style={{ color: C.green }}>чате</span>
       </div>
       {FEATURES.map((x, i) => {
-        const s = spring({ frame: f - 10 - i * 7, fps, config: { damping: 14 } });
+        const s = spring({
+          frame: f - 10 - i * 7,
+          fps,
+          config: { damping: 14 },
+        });
         return (
           <div
             key={x.t}
@@ -61,8 +81,19 @@ export const Features: React.FC = () => {
               {x.e}
             </div>
             <div>
-              <div style={{ fontSize: 56, fontWeight: 800, color: C.text }}>{x.t}</div>
-              <div style={{ fontSize: 38, fontWeight: 500, color: C.muted, marginTop: 6 }}>{x.d}</div>
+              <div style={{ fontSize: 56, fontWeight: 800, color: C.text }}>
+                {x.t}
+              </div>
+              <div
+                style={{
+                  fontSize: 38,
+                  fontWeight: 500,
+                  color: C.muted,
+                  marginTop: 6,
+                }}
+              >
+                {x.d}
+              </div>
             </div>
           </div>
         );

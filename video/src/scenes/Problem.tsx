@@ -1,4 +1,11 @@
-import { AbsoluteFill, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  interpolate,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
+import { Sfx } from "../components/Sfx";
 import { C, FONT } from "../theme";
 
 const PAINS = [
@@ -14,7 +21,18 @@ export const Problem: React.FC = () => {
   const stopIn = spring({ frame: f - 52, fps, config: { damping: 9 } });
 
   return (
-    <AbsoluteFill style={{ fontFamily: FONT, alignItems: "center", justifyContent: "center", gap: 50 }}>
+    <AbsoluteFill
+      style={{
+        fontFamily: FONT,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 50,
+      }}
+    >
+      {PAINS.map((p, i) => (
+        <Sfx key={p.text} at={i * 8 + 18} name="swipe" volume={0.5} />
+      ))}
+      <Sfx at={52} name="impact" volume={0.8} />
       {PAINS.map((p, i) => {
         const d = i * 8;
         const s = spring({ frame: f - d, fps, config: { damping: 16 } });

@@ -1,10 +1,26 @@
-import { AbsoluteFill, interpolate, random, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  interpolate,
+  random,
+  spring,
+  useCurrentFrame,
+  useVideoConfig,
+} from "remotion";
+import { Sfx } from "../components/Sfx";
 import { C, FONT } from "../theme";
 
-const Word: React.FC<{ text: string; delay: number; color?: string }> = ({ text, delay, color = C.text }) => {
+const Word: React.FC<{ text: string; delay: number; color?: string }> = ({
+  text,
+  delay,
+  color = C.text,
+}) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const s = spring({ frame: f - delay, fps, config: { damping: 14, mass: 0.6 } });
+  const s = spring({
+    frame: f - delay,
+    fps,
+    config: { damping: 14, mass: 0.6 },
+  });
   return (
     <span
       style={{
@@ -31,8 +47,26 @@ export const Hook: React.FC = () => {
   const counterIn = spring({ frame: f - 30, fps });
 
   return (
-    <AbsoluteFill style={{ fontFamily: FONT, alignItems: "center", justifyContent: "center" }}>
-      <div style={{ fontSize: 104, fontWeight: 900, textAlign: "center", lineHeight: 1.1, width: 960 }}>
+    <AbsoluteFill
+      style={{
+        fontFamily: FONT,
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      {[0, 5, 10, 15].map((d) => (
+        <Sfx key={d} at={d} name="pop" volume={0.35} />
+      ))}
+      <Sfx at={18} name="impact" volume={0.4} />
+      <div
+        style={{
+          fontSize: 104,
+          fontWeight: 900,
+          textAlign: "center",
+          lineHeight: 1.1,
+          width: 960,
+        }}
+      >
         <Word text="Сколько" delay={0} />
         <Word text="калорий" delay={5} color={C.green} />
         <br />
@@ -69,7 +103,10 @@ export const Hook: React.FC = () => {
           fontSize: 44,
           color: C.muted,
           fontWeight: 600,
-          opacity: interpolate(f, [45, 60], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }),
+          opacity: interpolate(f, [45, 60], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          }),
         }}
       >
         Угадывать больше не нужно

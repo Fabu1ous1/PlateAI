@@ -4,7 +4,11 @@ import { staticFile } from "remotion";
 // Шрифт Inter лежит в public/fonts — рендер не зависит от интернета
 const CYRILLIC = "U+0301,U+0400-045F,U+0490-0491,U+04B0-04B1,U+2116";
 for (const weight of ["500", "700", "800", "900"]) {
-  loadFont({ family: "Inter", url: staticFile(`fonts/inter-latin-${weight}-normal.woff2`), weight });
+  loadFont({
+    family: "Inter",
+    url: staticFile(`fonts/inter-latin-${weight}-normal.woff2`),
+    weight,
+  });
   loadFont({
     family: "Inter",
     url: staticFile(`fonts/inter-cyrillic-${weight}-normal.woff2`),

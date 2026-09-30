@@ -1,18 +1,47 @@
 import "./index.css";
-import { Composition } from "remotion";
-import { PlateAIPromo, promoSchema, PROMO_FRAMES } from "./PlateAIPromo";
+import { Composition, Folder } from "remotion";
+import { Cover } from "./Cover";
+import {
+  FULL_FRAMES,
+  PlateAIPromo,
+  PlateAIPromoShort,
+  promoSchema,
+  SHORT_FRAMES,
+} from "./PlateAIPromo";
 import { FPS } from "./theme";
 
+// Впиши юзернейм бота, например "@PlateAI_bot" — он появится на финальном экране
+const defaultProps = { botHandle: "", music: true };
+
 export const RemotionRoot: React.FC = () => (
-  <Composition
-    id="PlateAIPromo"
-    component={PlateAIPromo}
-    schema={promoSchema}
-    // Впиши сюда юзернейм бота, например "@PlateAI_bot" — он появится на финальном экране
-    defaultProps={{ botHandle: "" }}
-    durationInFrames={PROMO_FRAMES}
-    fps={FPS}
-    width={1080}
-    height={1920}
-  />
+  <Folder name="PlateAI">
+    <Composition
+      id="PlateAIPromo"
+      component={PlateAIPromo}
+      schema={promoSchema}
+      defaultProps={defaultProps}
+      durationInFrames={FULL_FRAMES}
+      fps={FPS}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="PlateAIPromoShort"
+      component={PlateAIPromoShort}
+      schema={promoSchema}
+      defaultProps={defaultProps}
+      durationInFrames={SHORT_FRAMES}
+      fps={FPS}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="PlateAICover"
+      component={Cover}
+      durationInFrames={1}
+      fps={FPS}
+      width={1080}
+      height={1920}
+    />
+  </Folder>
 );
