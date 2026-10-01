@@ -37,7 +37,7 @@ export const Hook: React.FC = () => {
         const bob = Math.sin((f + i * 20) / 14) * 10;
         return (
           <div key={i}>
-            <Sfx at={it.d} name="pop" volume={0.25} />
+            <Sfx at={it.d} name="pop" volume={0.12} />
             <E3D
               code={it.c}
               size={it.s}
