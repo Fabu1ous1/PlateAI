@@ -1,0 +1,19 @@
+{
+  "name": "plateai-promo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Промо-ролик PlateAI на Remotion (9:16, 1080x1920)",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "audio": "node scripts/make-audio.mjs",
+    "render": "npm run audio && remotion render src/index.ts PlateAIPromo out/plateai-promo.mp4",
+    "render:cloud": "npm run audio && remotion render src/index.ts PlateAIPromo out/plateai-promo.mp4 --browser-executable=/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.532",
+    "@remotion/renderer": "^4.0.532",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.532"
+  }
+}
