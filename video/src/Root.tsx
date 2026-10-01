@@ -11,7 +11,7 @@ import {
 import { FPS } from "./theme";
 
 // Впиши юзернейм бота, например "@PlateAI_bot" — он появится на финальном экране
-const defaultProps = { botHandle: "", music: true };
+const defaultProps = { botHandle: "" };
 
 export const RemotionRoot: React.FC = () => (
   <Folder name="PlateAI">

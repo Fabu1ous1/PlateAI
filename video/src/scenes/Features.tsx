@@ -1,103 +1,126 @@
 import {
   AbsoluteFill,
+  Sequence,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { Sfx } from "../components/Sfx";
-import { C, FONT } from "../theme";
+import { E3D, ICON, MaskLine, Sfx } from "../lib/ui";
+import { C, DISPLAY } from "../theme";
 
-const FEATURES = [
-  { e: "📸", t: "Фото или текст", d: "Узнаёт блюдо и граммовку" },
-  { e: "🎯", t: "Норма под тебя", d: "Калории и БЖУ по твоей цели" },
-  { e: "📊", t: "Итоги дня и недели", d: "Видно, где перебор" },
-  { e: "💧", t: "Трекер воды", d: "В одно нажатие" },
+const CARDS = [
+  {
+    c: ICON.camera,
+    word: "ФОТО",
+    sub: "или просто текст",
+    bg: C.lime,
+    fg: C.forest,
+  },
+  {
+    c: ICON.target,
+    word: "НОРМА",
+    sub: "КБЖУ под твою цель",
+    bg: C.forest,
+    fg: C.cream,
+  },
+  {
+    c: ICON.chart,
+    word: "ИТОГИ",
+    sub: "за день и неделю",
+    bg: C.orange,
+    fg: C.white,
+  },
+  {
+    c: ICON.drop,
+    word: "ВОДА",
+    sub: "в одно касание",
+    bg: C.sky,
+    fg: C.forest,
+  },
 ];
+export const FEATURE_LEN = 30;
 
-export const Features: React.FC = () => {
+// Один экран — одна фича: жёсткая склейка, гигантская иконка и слово
+const Card: React.FC<(typeof CARDS)[number] & { i: number }> = ({
+  c,
+  word,
+  sub,
+  bg,
+  fg,
+  i,
+}) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const head = spring({ frame: f, fps, config: { damping: 14 } });
+  const s = spring({ frame: f, fps, config: { damping: 10, mass: 0.6 } });
+  const drift = f * 1.2;
   return (
     <AbsoluteFill
       style={{
-        fontFamily: FONT,
+        background: bg,
         alignItems: "center",
         justifyContent: "center",
-        gap: 36,
+        fontFamily: DISPLAY,
       }}
     >
-      {FEATURES.map((x, i) => (
-        <Sfx key={x.t} at={10 + i * 7} name="pop" volume={0.3} />
-      ))}
+      <Sfx at={0} name={i === 0 ? "whoosh" : "swipe"} volume={0.35} />
+      {/* номер на фоне */}
       <div
         style={{
-          fontSize: 88,
+          position: "absolute",
+          top: 120,
+          right: 70,
+          fontSize: 60,
           fontWeight: 900,
-          textAlign: "center",
-          lineHeight: 1.1,
-          marginBottom: 30,
-          opacity: head,
-          transform: `translateY(${(1 - head) * -40}px)`,
+          color: fg,
+          opacity: 0.35,
         }}
       >
-        Всё в одном <span style={{ color: C.green }}>чате</span>
+        0{i + 1}
       </div>
-      {FEATURES.map((x, i) => {
-        const s = spring({
-          frame: f - 10 - i * 7,
-          fps,
-          config: { damping: 14 },
-        });
-        return (
-          <div
-            key={x.t}
-            style={{
-              width: 900,
-              display: "flex",
-              alignItems: "center",
-              gap: 36,
-              padding: "36px 44px",
-              borderRadius: 40,
-              background: "rgba(255,255,255,0.05)",
-              border: "2px solid rgba(61,220,132,0.25)",
-              opacity: s,
-              transform: `translateX(${(1 - s) * (i % 2 ? 300 : -300)}px)`,
-            }}
-          >
-            <div
-              style={{
-                width: 130,
-                height: 130,
-                borderRadius: 34,
-                background: "rgba(61,220,132,0.14)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: 76,
-                flexShrink: 0,
-              }}
-            >
-              {x.e}
-            </div>
-            <div>
-              <div style={{ fontSize: 56, fontWeight: 800, color: C.text }}>
-                {x.t}
-              </div>
-              <div
-                style={{
-                  fontSize: 38,
-                  fontWeight: 500,
-                  color: C.muted,
-                  marginTop: 6,
-                }}
-              >
-                {x.d}
-              </div>
-            </div>
-          </div>
-        );
-      })}
+      <E3D
+        code={c}
+        size={520}
+        style={{
+          transform: `scale(${s}) rotate(${(1 - s) * -40 + Math.sin(f / 8) * 4}deg) translateY(${-drift * 0.3}px)`,
+          filter: "drop-shadow(0 40px 50px rgba(0,0,0,0.22))",
+        }}
+      />
+      <MaskLine at={2} dur={12}>
+        <div
+          style={{
+            fontSize: 200,
+            fontWeight: 900,
+            color: fg,
+            letterSpacing: -8,
+            lineHeight: 1,
+          }}
+        >
+          {word}
+        </div>
+      </MaskLine>
+      <MaskLine at={6} dur={12}>
+        <div
+          style={{ fontSize: 54, fontWeight: 700, color: fg, opacity: 0.85 }}
+        >
+          {sub}
+        </div>
+      </MaskLine>
     </AbsoluteFill>
   );
 };
+
+export const Features: React.FC = () => (
+  <AbsoluteFill>
+    {CARDS.map((card, i) => (
+      <Sequence
+        key={card.word}
+        from={i * FEATURE_LEN}
+        durationInFrames={FEATURE_LEN}
+      >
+        <Card {...card} i={i} />
+      </Sequence>
+    ))}
+  </AbsoluteFill>
+);
+
+export const FEATURES_FRAMES = CARDS.length * FEATURE_LEN;

@@ -1,4 +1,4 @@
-// Синтезирует музыку и звуковые эффекты для ролика в public/sfx/*.wav.
+// Синтезирует звуковые эффекты для ролика в public/sfx/*.wav.
 // Никаких сторонних сэмплов — всё генерируется кодом, авторских прав нет.
 // Запуск: node scripts/make-audio.mjs
 import { mkdirSync, writeFileSync } from "node:fs";
@@ -122,64 +122,4 @@ function addNoise(out, at, dur, amp, decay, lp0 = 1, lp1 = lp0, hp = false) {
   const o = buf(0.2);
   addSine(o, 0, 0.18, 620, 1240, 0.8, 20);
   save("send.wav", o, 0.6);
-}
-
-// ── музыка: 120 BPM, Am7 – Fmaj7 – C – G ──
-{
-  const LEN = 27.5;
-  const BEAT = 0.5;
-  const DROP = 5.2; // бит вступает вместе с логотипом
-  const END = 26.0;
-  const o = buf(LEN);
-  const n = (m) => 440 * Math.pow(2, (m - 69) / 12);
-  const chords = [
-    [57, 60, 64, 67],
-    [53, 57, 60, 64],
-    [48, 55, 60, 64],
-    [55, 59, 62, 67],
-  ];
-  const BAR = BEAT * 4;
-  // пэд: мягкие синусы с медленной атакой, «пружинит» от бочки
-  for (let bar = 0; bar * BAR < END; bar++) {
-    const ch = chords[bar % 4];
-    const t0 = bar * BAR;
-    for (const m of ch) {
-      for (const det of [-0.12, 0.12]) {
-        const f = n(m + 12) * Math.pow(2, det / 12);
-        const s = Math.floor(t0 * SR);
-        for (let i = 0; i < BAR * SR * 1.05 && s + i < o.length; i++) {
-          const t = i / SR;
-          const abs = t0 + t;
-          const env = Math.min(1, t / 0.25) * Math.min(1, (BAR * 1.05 - t) / 0.2);
-          const beatPos = (abs % BEAT) / BEAT;
-          const duck = abs >= DROP ? 0.45 + 0.55 * Math.min(1, beatPos * 3) : 1;
-          o[s + i] += Math.sin(2 * Math.PI * f * abs) * 0.035 * env * duck;
-        }
-      }
-    }
-    // арпеджио восьмыми
-    for (let k = 0; k < 8; k++) {
-      const m = ch[[0, 1, 2, 3, 2, 1, 3, 2][k]] + 24;
-      addSine(o, t0 + k * (BEAT / 2), 0.35, n(m), n(m), 0.05, 12);
-    }
-    // бас и ударные после дропа
-    if (t0 >= DROP - 0.01 || t0 + BAR > DROP) {
-      for (let b = 0; b < 4; b++) {
-        const tb = t0 + b * BEAT;
-        if (tb < DROP - 0.01 || tb > END) continue;
-        addSine(o, tb, 0.35, 150, 42, 0.9, 9); // бочка
-        addNoise(o, tb + BEAT / 2, 0.05, 0.12, 70, 0.95, 0.95, true); // хэт
-        addSine(o, tb + BEAT / 2, 0.22, n(ch[0] - 12), n(ch[0] - 12), 0.22, 7); // бас
-        if (b % 2 === 1) addNoise(o, tb, 0.15, 0.18, 25, 0.5, 0.3); // клэп
-      }
-    }
-  }
-  // финальный аккорд
-  for (const m of [57, 60, 64, 67, 72]) addSine(o, END, LEN - END, n(m + 12), n(m + 12), 0.06, 1.6);
-  // лёгкий фейд в начале и в конце
-  for (let i = 0; i < o.length; i++) {
-    const t = i / SR;
-    o[i] *= Math.min(1, t / 0.6) * Math.min(1, (LEN - t) / 0.4);
-  }
-  save("music.wav", o, 0.85);
 }

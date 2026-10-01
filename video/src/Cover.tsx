@@ -1,98 +1,89 @@
 import { AbsoluteFill } from "remotion";
-import { Background } from "./components/Background";
-import { Logo } from "./components/Logo";
-import { PlatePhoto } from "./scenes/ChatDemo";
-import { C, FONT } from "./theme";
+import { E3D, ICON } from "./lib/ui";
+import { PlateCard } from "./scenes/PlateCard";
+import { C, DISPLAY } from "./theme";
 
-const Chip: React.FC<{
-  children: React.ReactNode;
-  style?: React.CSSProperties;
-}> = ({ children, style }) => (
-  <div
-    style={{
-      position: "absolute",
-      padding: "22px 34px",
-      borderRadius: 30,
-      background: "rgba(10,15,13,0.88)",
-      border: `3px solid ${C.green}`,
-      fontSize: 50,
-      fontWeight: 800,
-      color: C.text,
-      boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
-      whiteSpace: "nowrap",
-      ...style,
-    }}
-  >
-    {children}
-  </div>
-);
-
-// Обложка для Reels / Shorts (статичный кадр)
+// Обложка для Reels / Shorts
 export const Cover: React.FC = () => (
-  <AbsoluteFill style={{ background: C.bg, color: C.text, fontFamily: FONT }}>
-    <Background />
-    <AbsoluteFill style={{ alignItems: "center" }}>
-      <div
+  <AbsoluteFill
+    style={{ background: C.cream, alignItems: "center", fontFamily: DISPLAY }}
+  >
+    <div
+      style={{
+        marginTop: 170,
+        textAlign: "center",
+        fontWeight: 900,
+        fontSize: 132,
+        lineHeight: 1,
+        letterSpacing: -5,
+      }}
+    >
+      <div style={{ color: C.ink }}>КАЛОРИИ</div>
+      <div style={{ color: C.orange }}>ПО ФОТО</div>
+    </div>
+    <div
+      style={{
+        marginTop: 90,
+        transform: "rotate(-4deg)",
+        boxShadow: "0 50px 100px rgba(14,26,20,0.3)",
+        borderRadius: 56,
+      }}
+    >
+      <PlateCard size={780} radius={56} />
+    </div>
+    <div
+      style={{
+        position: "absolute",
+        top: 1240,
+        right: 50,
+        transform: "rotate(6deg)",
+        background: C.lime,
+        color: C.forest,
+        fontSize: 84,
+        fontWeight: 900,
+        padding: "20px 44px",
+        borderRadius: 40,
+        boxShadow: "0 24px 50px rgba(14,26,20,0.25)",
+        letterSpacing: -3,
+      }}
+    >
+      494 ккал
+    </div>
+    <E3D
+      code={ICON.camera}
+      size={230}
+      style={{
+        position: "absolute",
+        top: 520,
+        left: 20,
+        transform: "rotate(-14deg)",
+        filter: "drop-shadow(0 24px 30px rgba(14,26,20,0.25))",
+      }}
+    />
+    <div
+      style={{
+        position: "absolute",
+        bottom: 150,
+        display: "flex",
+        alignItems: "center",
+        gap: 20,
+        fontSize: 64,
+        fontWeight: 900,
+        color: C.ink,
+        letterSpacing: -2,
+      }}
+    >
+      Plate<span style={{ color: C.orange, marginLeft: -20 }}>AI</span>
+      <span
         style={{
-          marginTop: 150,
-          display: "flex",
-          alignItems: "center",
-          gap: 28,
-        }}
-      >
-        <Logo size={120} delay={-90} />
-        <div style={{ fontSize: 80, fontWeight: 900 }}>
-          Plate<span style={{ color: C.green }}>AI</span>
-        </div>
-      </div>
-      <div
-        style={{
-          marginTop: 70,
-          fontSize: 118,
-          fontWeight: 900,
-          lineHeight: 1.05,
-          textAlign: "center",
-        }}
-      >
-        Калории
-        <br />
-        <span style={{ color: C.green }}>по фото</span>
-      </div>
-      <div
-        style={{
-          position: "relative",
-          marginTop: 200,
-          transform: "scale(1.5) rotate(-4deg)",
-        }}
-      >
-        <PlatePhoto />
-      </div>
-      <Chip
-        style={{
-          top: 1110,
-          right: 60,
-          transform: "rotate(5deg)",
-          fontSize: 64,
-          color: C.amber,
-        }}
-      >
-        494 ккал
-      </Chip>
-      <Chip style={{ top: 1500, left: 60, transform: "rotate(-4deg)" }}>
-        🥩 Б 53 · 🧈 Ж 9 · 🍞 У 48
-      </Chip>
-      <div
-        style={{
-          position: "absolute",
-          bottom: 150,
-          fontSize: 60,
+          fontSize: 40,
           fontWeight: 700,
           color: C.muted,
+          letterSpacing: 0,
         }}
       >
-        прямо в{" "}
-        <span style={{ color: "#5AB3F0", fontWeight: 900 }}>Telegram</span>
-      </div>
-    </AbsoluteFill>
+        · Telegram-бот
+      </span>
+    </div>
   </AbsoluteFill>
 );

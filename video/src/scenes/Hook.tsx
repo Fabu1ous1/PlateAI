@@ -1,116 +1,100 @@
 import {
   AbsoluteFill,
-  interpolate,
   random,
   spring,
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { Sfx } from "../components/Sfx";
-import { C, FONT } from "../theme";
+import { prog } from "../lib/motion";
+import { E3D, ICON, MaskLine, Sfx } from "../lib/ui";
+import { C, DISPLAY } from "../theme";
 
-const Word: React.FC<{ text: string; delay: number; color?: string }> = ({
-  text,
-  delay,
-  color = C.text,
-}) => {
-  const f = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const s = spring({
-    frame: f - delay,
-    fps,
-    config: { damping: 14, mass: 0.6 },
-  });
-  return (
-    <span
-      style={{
-        display: "inline-block",
-        margin: "0 14px",
-        color,
-        opacity: s,
-        transform: `translateY(${(1 - s) * 60}px) scale(${0.8 + s * 0.2})`,
-      }}
-    >
-      {text}
-    </span>
-  );
-};
+// Еда «высыпается» вокруг заголовка
+const FOOD = [
+  { c: ICON.burger, x: 90, y: 230, s: 300, r: -14, d: 2 },
+  { c: ICON.pizza, x: 700, y: 170, s: 280, r: 18, d: 6 },
+  { c: ICON.donut, x: 760, y: 1330, s: 260, r: -10, d: 10 },
+  { c: ICON.spaghetti, x: 60, y: 1380, s: 300, r: 8, d: 14 },
+  { c: ICON.croissant, x: 420, y: 1560, s: 220, r: -20, d: 18 },
+];
 
-// 0–3 c: крючок — вопрос + тарелка со «сломанным» счётчиком калорий
 export const Hook: React.FC = () => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const plate = spring({ frame: f - 18, fps, config: { damping: 10 } });
-  const wobble = Math.sin(f / 6) * 4;
-  // счётчик мельтешит случайными числами, как будто «угадываем»
-  const guess = Math.round(200 + random(`g${Math.floor(f / 3)}`) * 900);
-  const counterIn = spring({ frame: f - 30, fps });
+  // число мелькает, пытаясь «угадать»
+  const guess = Math.round(150 + random(`n${Math.floor(f / 2)}`) * 1100);
+  const num = prog(f, 24, 14);
+  const zoom = 1 + f * 0.0015; // медленный наезд камеры
 
   return (
-    <AbsoluteFill
-      style={{
-        fontFamily: FONT,
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      {[0, 5, 10, 15].map((d) => (
-        <Sfx key={d} at={d} name="pop" volume={0.35} />
-      ))}
-      <Sfx at={18} name="impact" volume={0.4} />
-      <div
+    <AbsoluteFill style={{ background: C.cream, transform: `scale(${zoom})` }}>
+      {FOOD.map((it, i) => {
+        const s = spring({
+          frame: f - it.d,
+          fps,
+          config: { damping: 11, mass: 0.7 },
+        });
+        const bob = Math.sin((f + i * 20) / 14) * 10;
+        return (
+          <div key={i}>
+            <Sfx at={it.d} name="pop" volume={0.25} />
+            <E3D
+              code={it.c}
+              size={it.s}
+              style={{
+                position: "absolute",
+                left: it.x,
+                top: it.y + bob,
+                transform: `scale(${s}) rotate(${it.r + (1 - s) * 60}deg)`,
+                filter: "drop-shadow(0 30px 40px rgba(14,26,20,0.18))",
+              }}
+            />
+          </div>
+        );
+      })}
+      <AbsoluteFill
         style={{
-          fontSize: 104,
-          fontWeight: 900,
-          textAlign: "center",
-          lineHeight: 1.1,
-          width: 960,
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: DISPLAY,
         }}
       >
-        <Word text="Сколько" delay={0} />
-        <Word text="калорий" delay={5} color={C.green} />
-        <br />
-        <Word text="в твоей" delay={10} />
-        <Word text="тарелке?" delay={15} />
-      </div>
-      <div
-        style={{
-          marginTop: 80,
-          fontSize: 340,
-          transform: `scale(${plate}) rotate(${wobble}deg)`,
-          filter: "drop-shadow(0 30px 60px rgba(0,0,0,0.5))",
-        }}
-      >
-        🍝
-      </div>
-      <div
-        style={{
-          marginTop: 40,
-          fontSize: 88,
-          fontWeight: 800,
-          color: C.amber,
-          opacity: counterIn,
-          transform: `scale(${counterIn})`,
-          fontVariantNumeric: "tabular-nums",
-        }}
-      >
-        {guess}? ккал
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          bottom: 260,
-          fontSize: 44,
-          color: C.muted,
-          fontWeight: 600,
-          opacity: interpolate(f, [45, 60], [0, 1], {
-            extrapolateLeft: "clamp",
-            extrapolateRight: "clamp",
-          }),
-        }}
-      >
-        Угадывать больше не нужно
-      </div>
+        <div
+          style={{
+            textAlign: "center",
+            fontWeight: 900,
+            fontSize: 100,
+            lineHeight: 1.02,
+            letterSpacing: -3,
+          }}
+        >
+          <MaskLine at={0}>
+            <span style={{ color: C.ink }}>СКОЛЬКО</span>
+          </MaskLine>
+          <MaskLine at={4}>
+            <span style={{ color: C.orange }}>КАЛОРИЙ</span>
+          </MaskLine>
+          <MaskLine at={8}>
+            <span style={{ color: C.ink }}>НА ТАРЕЛКЕ?</span>
+          </MaskLine>
+        </div>
+        <div
+          style={{
+            marginTop: 50,
+            fontSize: 150,
+            fontWeight: 900,
+            color: C.ink,
+            opacity: num,
+            transform: `scale(${0.6 + num * 0.4})`,
+            fontVariantNumeric: "tabular-nums",
+            background: C.lime,
+            padding: "10px 50px",
+            borderRadius: 40,
+          }}
+        >
+          {guess}?
+        </div>
+      </AbsoluteFill>
     </AbsoluteFill>
   );
 };
