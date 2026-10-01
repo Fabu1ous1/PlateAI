@@ -37,7 +37,7 @@ export const Pain: React.FC = () => {
         transform: `translate(${shake}px, ${shake * 0.6}px)`,
       }}
     >
-      <Sfx at={SLAM} name="impact" volume={0.7} />
+      <Sfx at={SLAM} name="impact" volume={0.45} />
       <AbsoluteFill
         style={{
           alignItems: "center",
