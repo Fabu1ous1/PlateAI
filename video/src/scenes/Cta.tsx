@@ -12,7 +12,7 @@ const Plane: React.FC = () => (
 export const Cta: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const btn = pop(frame, fps, 34, 10);
+  const btn = pop(frame, fps, 36, 10);
   const pulse = 1 + 0.04 * Math.sin(Math.max(0, frame - 50) / 5);
 
   const line = (text: string, delay: number, color: string, size: number) => {
@@ -36,19 +36,35 @@ export const Cta: React.FC = () => {
   };
 
   return (
-    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", textAlign: "center" }}>
-      <div style={{ marginBottom: 70, scale: String(pop(frame, fps, 0, 12)) }}>
-        <Logo size={170} progress={ease(frame, 0, 22)} />
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", textAlign: "center", paddingBottom: 160 }}>
+      <div style={{ marginBottom: 50, scale: String(pop(frame, fps, 0, 12)) }}>
+        <Logo size={140} progress={ease(frame, 0, 22)} />
       </div>
-      {line("Напиши,", 4, C.text, 116)}
-      {line("что съел.", 9, C.text, 116)}
-      <div style={{ height: 40 }} />
-      {line("Остальное —", 18, C.muted, 84)}
-      {line("PlateAI", 23, C.lime, 150)}
-
+      {line("Попробуй", 4, C.text, 104)}
+      {line("прямо сейчас", 9, C.text, 104)}
       <div
         style={{
-          marginTop: 90,
+          marginTop: 50,
+          padding: "14px 44px",
+          borderRadius: 999,
+          backgroundColor: C.lime,
+          color: "#0A1408",
+          fontFamily: FONT_DISPLAY,
+          fontWeight: 800,
+          fontSize: 64,
+          letterSpacing: -1,
+          rotate: "-3deg",
+          scale: String(interpolate(pop(frame, fps, 18, 9), [0, 1], [2.5, 1])),
+          opacity: Math.min(1, pop(frame, fps, 18, 9) * 2),
+        }}
+      >
+        БЕСПЛАТНО
+      </div>
+      <div style={{ height: 50 }} />
+      {line("@PlateHelper_bot", 26, C.lime, 66)}
+      <div
+        style={{
+          marginTop: 70,
           display: "flex",
           alignItems: "center",
           gap: 22,

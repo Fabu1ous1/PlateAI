@@ -10,24 +10,24 @@ export const ChatDemo: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const typed = Math.round(ease(frame, 22, 52) * MESSAGE.length);
-  const sent = frame >= 56;
-  const card = pop(frame, fps, 84, 14);
+  const typed = Math.round(ease(frame, 8, 28) * MESSAGE.length);
+  const sent = frame >= 30;
+  const card = pop(frame, fps, 46, 14);
   const cursorOn = Math.floor(frame / 8) % 2 === 0;
 
   return (
     <AbsoluteFill>
-      <Title top="Просто напиши," accent="что съел" y={140} />
-      <Phone top={480} height={1120}>
-        {frame >= 14 && (
-          <UserBubble scale={pop(frame, fps, 14, 14)}>
+      <Title top="Или просто" accent="напиши текстом" />
+      <Phone top={480} height={1060}>
+        {frame >= 2 && (
+          <UserBubble scale={pop(frame, fps, 2, 14)}>
             {MESSAGE.slice(0, typed)}
             {!sent && <span style={{ opacity: cursorOn ? 1 : 0 }}>|</span>}
             {sent && <span style={{ fontSize: 30, marginLeft: 14, opacity: 0.6 }}>✓✓</span>}
           </UserBubble>
         )}
-        {frame >= 60 && frame < 84 && <TypingDots frame={frame} />}
-        {frame >= 84 && (
+        {frame >= 32 && frame < 46 && <TypingDots frame={frame} />}
+        {frame >= 46 && (
           <div
             style={{
               alignSelf: "flex-start",
@@ -45,15 +45,15 @@ export const ChatDemo: React.FC = () => {
             }}
           >
             <div style={{ fontSize: 46, fontWeight: 800, color: C.text }}>✅ Записал</div>
-            <FoodRow emoji="🥚" name="Яйцо варёное" amount="2 шт (~110 г)" kcal={155} p={pop(frame, fps, 96)} />
-            <FoodRow emoji="🍚" name="Гречка варёная" amount="150 г" kcal={165} p={pop(frame, fps, 106)} />
-            <div style={{ height: 2, backgroundColor: C.cardLine, opacity: ease(frame, 114, 120) }} />
+            <FoodRow emoji="🥚" name="Яйцо варёное" amount="2 шт (~110 г)" kcal={155} p={pop(frame, fps, 54)} />
+            <FoodRow emoji="🍚" name="Гречка варёная" amount="150 г" kcal={165} p={pop(frame, fps, 60)} />
+            <div style={{ height: 2, backgroundColor: C.cardLine, opacity: ease(frame, 64, 68) }} />
             <div
               style={{
                 display: "flex",
                 alignItems: "baseline",
                 justifyContent: "space-between",
-                opacity: ease(frame, 116, 122),
+                opacity: ease(frame, 66, 70),
               }}
             >
               <div style={{ fontSize: 40, fontWeight: 800, color: C.muted }}>Итого</div>
@@ -62,13 +62,13 @@ export const ChatDemo: React.FC = () => {
                   fontSize: 84,
                   fontWeight: 800,
                   color: C.lime,
-                  scale: String(1 + 0.08 * pop(frame, fps, 150) * (1 - ease(frame, 160, 175))),
+                  scale: String(1 + 0.08 * pop(frame, fps, 90) * (1 - ease(frame, 98, 110))),
                 }}
               >
-                {count(frame, 118, 150, 320)} <span style={{ fontSize: 40 }}>ккал</span>
+                {count(frame, 68, 90, 320)} <span style={{ fontSize: 40 }}>ккал</span>
               </div>
             </div>
-            <Macros p={19} f={13} c={31} opacity={ease(frame, 130, 140)} />
+            <Macros p={19} f={13} c={31} opacity={ease(frame, 76, 84)} />
           </div>
         )}
       </Phone>

@@ -36,22 +36,21 @@ const Bar: React.FC<{ label: string; value: number; target: number; color: strin
 export const DayProgress: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const ring = pop(frame, fps, 6, 16);
-  const fill = ease(frame, 10, 55);
+  const ring = pop(frame, fps, 0, 16);
+  const fill = ease(frame, 4, 36);
   const filled = 1 - Math.pow(1 - fill, 3);
   const r = 230;
   const len = 2 * Math.PI * r;
-  const water = Math.round(ease(frame, 70, 100) * 6);
 
   return (
     <AbsoluteFill style={{ fontFamily: FONT_UI }}>
-      <Title top="Весь день —" accent="как на ладони" y={140} />
+      <Title top="Худеешь" accent="или качаешься?" />
 
       <div
         style={{
           position: "absolute",
           left: (1080 - RING) / 2,
-          top: 410,
+          top: 470,
           width: RING,
           height: RING,
           scale: String(ring),
@@ -84,19 +83,19 @@ export const DayProgress: React.FC = () => {
           }}
         >
           <div style={{ fontFamily: FONT_DISPLAY, fontWeight: 800, fontSize: 104, color: C.text, letterSpacing: -3 }}>
-            {count(frame, 10, 55, EATEN)}
+            {count(frame, 4, 36, EATEN)}
           </div>
           <div style={{ fontSize: 40, fontWeight: 600, color: C.muted }}>из 2 000 ккал</div>
-          <div style={{ marginTop: 10, fontSize: 38, fontWeight: 800, color: C.lime, opacity: ease(frame, 55, 65) }}>
+          <div style={{ marginTop: 10, fontSize: 38, fontWeight: 800, color: C.lime, opacity: ease(frame, 36, 44) }}>
             осталось 360
           </div>
         </div>
       </div>
 
-      <div style={{ position: "absolute", left: 100, right: 100, top: 1030, display: "flex", flexDirection: "column", gap: 40 }}>
-        <Bar label="🥩 Белки" value={92} target={120} color={C.mint} t={ease(frame, 30, 65)} delay={26} />
-        <Bar label="🧈 Жиры" value={58} target={67} color={C.amber} t={ease(frame, 36, 71)} delay={32} />
-        <Bar label="🍞 Углеводы" value={190} target={250} color={C.coral} t={ease(frame, 42, 77)} delay={38} />
+      <div style={{ position: "absolute", left: 100, right: 100, top: 1060, display: "flex", flexDirection: "column", gap: 40 }}>
+        <Bar label="💪 Белки" value={92} target={120} color={C.mint} t={ease(frame, 14, 44)} delay={10} />
+        <Bar label="🧈 Жиры" value={58} target={67} color={C.amber} t={ease(frame, 18, 48)} delay={14} />
+        <Bar label="🍞 Углеводы" value={190} target={250} color={C.coral} t={ease(frame, 22, 52)} delay={18} />
       </div>
 
       <div
@@ -104,34 +103,20 @@ export const DayProgress: React.FC = () => {
           position: "absolute",
           left: 100,
           right: 100,
-          top: 1560,
-          padding: "30px 36px",
+          top: 1440,
+          padding: "28px 36px",
           borderRadius: 36,
-          backgroundColor: "#0E2230",
-          border: "3px solid #17384C",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          opacity: pop(frame, fps, 62),
-          translate: `0 ${(1 - pop(frame, fps, 62)) * 80}px`,
+          backgroundColor: `${C.lime}18`,
+          border: `3px solid ${C.lime}55`,
+          textAlign: "center",
+          fontSize: 40,
+          fontWeight: 800,
+          color: C.text,
+          opacity: pop(frame, fps, 50),
+          translate: `0 ${(1 - pop(frame, fps, 50)) * 80}px`,
         }}
       >
-        <div style={{ fontSize: 42, fontWeight: 800, color: C.text }}>
-          💧 Вода <span style={{ color: C.telegram }}>{String(water * 0.25).replace(".", ",")} / 2 л</span>
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          {Array.from({ length: 8 }, (_, i) => (
-            <div
-              key={i}
-              style={{
-                width: 22,
-                height: 48,
-                borderRadius: 11,
-                backgroundColor: i < water ? C.telegram : "#17384C",
-              }}
-            />
-          ))}
-        </div>
+        🎯 Норма считается <span style={{ color: C.lime }}>под твою цель</span>
       </div>
     </AbsoluteFill>
   );

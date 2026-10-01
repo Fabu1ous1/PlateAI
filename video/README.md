@@ -5,7 +5,7 @@
 ```bash
 npm i
 npm run dev      # Remotion Studio, предпросмотр
-npm run render   # out/PlateAI-promo.mp4
+npm run render   # out/PlateAI-reels.mp4
 ```
 
 Сцены лежат в `src/scenes/`, порядок и длительность — в `src/PlateAIPromo.tsx`,

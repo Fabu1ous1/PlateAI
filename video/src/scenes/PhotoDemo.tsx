@@ -5,7 +5,7 @@ import { Title } from "../components/Title";
 import { C, FONT_UI } from "../theme";
 
 const PLATE = 640;
-const PLATE_TOP = 470;
+const PLATE_TOP = 500;
 
 const Chip: React.FC<{ label: string; kcal: number; x: number; y: number; p: number }> = ({ label, kcal, x, y, p }) => (
   <div
@@ -37,10 +37,10 @@ export const PhotoDemo: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const plate = pop(frame, fps, 4, 14);
-  const scan = ease(frame, 22, 58);
-  const flash = interpolate(frame, [16, 18, 26], [0, 0.85, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
-  const card = pop(frame, fps, 88, 14);
+  const plate = pop(frame, fps, -8, 14);
+  const scan = ease(frame, 8, 30);
+  const flash = interpolate(frame, [4, 6, 12], [0, 0.85, 0], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
+  const card = pop(frame, fps, 40, 14);
   const corner = (rot: number, l: number, t: number) => (
     <div
       style={{
@@ -56,12 +56,12 @@ export const PhotoDemo: React.FC = () => {
       }}
     />
   );
-  const frameP = pop(frame, fps, 10, 12);
+  const frameP = pop(frame, fps, 2, 12);
   const pad = interpolate(frameP, [0, 1], [140, 40]);
 
   return (
     <AbsoluteFill>
-      <Title top="Или просто" accent="пришли фото 📸" y={140} />
+      <Title top="Сфоткал еду —" accent="калории готовы" delay={-10} />
 
       <div
         style={{
@@ -113,15 +113,15 @@ export const PhotoDemo: React.FC = () => {
         )}
       </div>
 
-      <Chip label="🍔 Бургер" kcal={540} x={60} y={PLATE_TOP + 30} p={pop(frame, fps, 60)} />
-      <Chip label="🍟 Картофель фри" kcal={320} x={360} y={PLATE_TOP + 520} p={pop(frame, fps, 70)} />
+      <Chip label="🍔 Бургер" kcal={540} x={60} y={PLATE_TOP + 30} p={pop(frame, fps, 30)} />
+      <Chip label="🍟 Картофель фри" kcal={320} x={360} y={PLATE_TOP + 520} p={pop(frame, fps, 36)} />
 
       <div
         style={{
           position: "absolute",
           left: 90,
           right: 90,
-          top: 1330,
+          top: 1300,
           padding: "40px 44px",
           borderRadius: 48,
           backgroundColor: C.card,
@@ -137,10 +137,10 @@ export const PhotoDemo: React.FC = () => {
         <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
           <div style={{ fontSize: 44, fontWeight: 800, color: C.text }}>✅ Записал</div>
           <div style={{ fontSize: 84, fontWeight: 800, color: C.lime }}>
-            {count(frame, 92, 125, 860)} <span style={{ fontSize: 40 }}>ккал</span>
+            {count(frame, 42, 66, 860)} <span style={{ fontSize: 40 }}>ккал</span>
           </div>
         </div>
-        <Macros p={28} f={44} c={92} opacity={ease(frame, 105, 115)} />
+        <Macros p={28} f={44} c={92} opacity={ease(frame, 54, 62)} />
       </div>
 
       <AbsoluteFill style={{ backgroundColor: "white", opacity: flash }} />

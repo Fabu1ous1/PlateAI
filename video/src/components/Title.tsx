@@ -6,7 +6,7 @@ import { pop } from "./anim";
 export const Title: React.FC<{ top: string; accent: string; y?: number; delay?: number }> = ({
   top,
   accent,
-  y = 150,
+  y = 200,
   delay = 0,
 }) => {
   const frame = useCurrentFrame();
